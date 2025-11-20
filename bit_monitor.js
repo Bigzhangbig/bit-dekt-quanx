@@ -2,9 +2,9 @@
  * 脚本名称：北理工第二课堂监控
  * 作者：Gemini for User
  * * [rewrite_local]
- * ^https:\/\/qcbldekt\.bit\.edu\.cn\/api\/course\/list url script-request-header https://raw.githubusercontent.com/yourname/script/master/bit_monitor.js
+ * ^https:\/\/qcbldekt\.bit\.edu\.cn\/api\/course\/list url script-request-header https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/bit_monitor.js
  * * [task_local]
- * 30 8-22/2 * * * https://raw.githubusercontent.com/yourname/script/master/bit_monitor.js, tag=第二课堂监控, img-url=https://raw.githubusercontent.com/Orz-3/mini/master/Color/BIT.png, enabled=true
+ * 30 8-22/2 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/bit_monitor.js, tag=第二课堂监控, enabled=true
  * */
 
 const $ = new Env("北理工第二课堂");
@@ -24,7 +24,11 @@ const CONFIG = {
         { id: 4, name: "团队协作" },
         { id: 5, name: "文化互鉴" },
         { id: 6, name: "健康生活" }
-    ]
+    ],
+    statusMap: {
+        1: "未开始",
+        2: "进行中"
+    }
 };
 
 // 脚本入口
@@ -77,40 +81,64 @@ async function checkCourses() {
     let cache = JSON.parse($.getdata(CONFIG.cacheKey) || "{}");
     let notifyMsg = "";
     let hasUpdate = false;
+    let isTokenExpired = false;
 
     // 遍历所有栏目
     for (let cat of CONFIG.categories) {
-        // 构造URL：获取最新的一页数据
-        // sign_status=2 表示“进行中”，如果想监控所有状态，可调整参数
-        // transcript_index_type_id=0 固定
-        const url = `https://qcbldekt.bit.edu.cn/api/course/list?page=1&limit=5&sign_status=2&transcript_index_id=${cat.id}&transcript_index_type_id=0`;
+        let maxIdInThisLoop = cache[cat.id] || 0;
         
-        try {
-            const data = await httpGet(url, headers);
+        // 遍历状态：未开始(1), 进行中(2)
+        for (let status of [1, 2]) {
+            const url = `https://qcbldekt.bit.edu.cn/api/course/list?page=1&limit=5&sign_status=${status}&transcript_index_id=${cat.id}&transcript_index_type_id=0`;
             
-            if (data && data.code === 200 && data.data && data.data.length > 0) {
-                // 获取该栏目最新的课程
-                const latestCourse = data.data[0];
-                const lastId = cache[cat.id]; // 上次记录的ID
+            try {
+                const data = await httpGet(url, headers);
+                
+                // 检查 Token 是否失效
+                if (data && (data.code === 401 || data.message === "Unauthenticated.")) {
+                    isTokenExpired = true;
+                    break;
+                }
 
-                // 比较 ID，如果不一致，说明有更新
-                if (latestCourse.id !== lastId) {
-                    hasUpdate = true;
-                    const time = latestCourse.sign_in_start_time || "未知时间";
-                    const place = latestCourse.time_place ? latestCourse.time_place.replace(/\n/g, " ") : "未知地点";
-                    
-                    notifyMsg += `【${cat.name}】🆕 ${latestCourse.transcript_name}\n⏰ ${time}\n📍 ${place}\n\n`;
-                    
-                    // 更新缓存
-                    cache[cat.id] = latestCourse.id;
+                if (data && data.code === 200 && data.data && data.data.length > 0) {
+                    // 遍历返回的课程
+                    for (let course of data.data) {
+                        // 如果课程ID大于缓存的ID，则是新课程
+                        if (course.id > (cache[cat.id] || 0)) {
+                            hasUpdate = true;
+                            const time = course.sign_in_start_time || "未知时间";
+                            const place = course.time_place ? course.time_place.replace(/\n/g, " ") : "未知地点";
+                            const statusStr = CONFIG.statusMap[status];
+                            
+                            notifyMsg += `【${cat.name} | ${statusStr}】🆕 ${course.transcript_name}\n⏰ ${time}\n📍 ${place}\n\n`;
+                            
+                            // 更新当前循环发现的最大ID
+                            if (course.id > maxIdInThisLoop) {
+                                maxIdInThisLoop = course.id;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log(`❌ 获取 ${cat.name} (状态${status}) 失败: ${e}`);
+                if (e.toString().includes("401")) {
+                    isTokenExpired = true;
+                    break;
                 }
             }
-        } catch (e) {
-            console.log(`❌ 获取 ${cat.name} 失败: ${e}`);
+            // 稍微延迟
+            await new Promise(r => setTimeout(r, 500));
         }
         
-        // 稍微延迟一下，避免并发过高封IP
-        await new Promise(r => setTimeout(r, 1000));
+        if (isTokenExpired) break;
+        
+        // 更新该栏目的缓存ID
+        cache[cat.id] = maxIdInThisLoop;
+    }
+
+    if (isTokenExpired) {
+        $.msg($.name, "⚠️ Token 已失效", "请重新进入小程序刷新列表获取新的 Token");
+        return;
     }
 
     // 如果有更新，发送通知并保存新缓存
@@ -126,8 +154,13 @@ async function checkCourses() {
 function httpGet(url, headers) {
     return new Promise((resolve, reject) => {
         $.get({ url, headers }, (err, resp, data) => {
-            if (err) reject(err);
-            else {
+            if (err) {
+                reject(err);
+            } else {
+                if (resp.status === 401 || resp.statusCode === 401) {
+                    resolve({ code: 401, message: "Unauthenticated." });
+                    return;
+                }
                 try {
                     resolve(JSON.parse(data));
                 } catch (e) {
