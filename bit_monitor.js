@@ -205,11 +205,60 @@ async function checkCourses() {
         $.msg($.name, "发现新课程活动！", notifyMsg, { "open-url": openUrl });
         $.setdata(JSON.stringify(cache), CONFIG.cacheKey);
     } else {
-        if (isDebug) console.log(`[Debug] 暂无新课程更新`);
-        console.log("暂无新课程更新");
+        if (isDebug) {
+            console.log(`[Debug] 暂无新课程更新`);
+            // Debug模式下，即使没有新课程，也检查是否有未开始的活动并提示
+            await checkUpcomingInDebug(headers);
+        } else {
+            console.log("暂无新课程更新");
+        }
     }
     
     $done();
+}
+
+// Debug模式：检查未开始的活动并提示
+async function checkUpcomingInDebug(headers) {
+    console.log(`[Debug] 检查未开始的活动...`);
+    let upcomingMsg = "";
+    let hasUpcoming = false;
+    
+    for (let cat of CONFIG.categories) {
+        const url = `https://qcbldekt.bit.edu.cn/api/course/list?page=1&limit=5&sign_status=1&transcript_index_id=${cat.id}&transcript_index_type_id=0`;
+        
+        try {
+            const data = await httpGet(url, headers);
+            
+            if (data && data.code === 200 && data.data && data.data.items && data.data.items.length > 0) {
+                const courses = data.data.items;
+                
+                for (let course of courses) {
+                    hasUpcoming = true;
+                    const title = course.title || course.transcript_name || "未知名称";
+                    const signTime = course.sign_start_time || "未知";
+                    const place = course.time_place ? course.time_place.replace(/[\r\n]+/g, " ") : "未知地点";
+                    
+                    upcomingMsg += `【${cat.name} | 未开始】${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}\n🆔 课程ID: ${course.id}\n\n`;
+                    
+                    // 限制最多显示3个活动，避免消息过长
+                    if (upcomingMsg.split('\n\n').length >= 4) break;
+                }
+            }
+            
+            if (upcomingMsg.split('\n\n').length >= 4) break;
+        } catch (e) {
+            console.log(`[Debug] 获取 ${cat.name} 未开始活动失败: ${e}`);
+        }
+        
+        await new Promise(r => setTimeout(r, 300));
+    }
+    
+    if (hasUpcoming) {
+        let openUrl = "weixin://dl/business/?t=34E4TP288tr";
+        $.msg($.name, "[Debug] 当前未开始的活动", upcomingMsg, { "open-url": openUrl });
+    } else {
+        console.log(`[Debug] 暂无未开始的活动`);
+    }
 }
 
 // 封装请求
