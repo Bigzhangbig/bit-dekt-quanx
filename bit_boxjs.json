@@ -12,6 +12,7 @@
         "bit_sc_token",
         "bit_sc_headers",
         "bit_sc_cache",
+        "bit_sc_signup_course_id",
         "bit_sc_debug"
       ],
       "descs_html": [
@@ -19,6 +20,13 @@
         "脚本会自动监控第二课堂的新活动并发送通知。"
       ],
       "settings": [
+        {
+          "id": "bit_sc_signup_course_id",
+          "name": "报名课程ID",
+          "val": "",
+          "type": "text",
+          "desc": "输入要报名的课程ID（数字），运行报名脚本时使用"
+        },
         {
           "id": "bit_sc_debug",
           "name": "开启调试日志",
