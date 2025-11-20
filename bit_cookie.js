@@ -20,7 +20,8 @@ const CONFIG = {
     if (typeof $request !== "undefined") {
         await getCookie();
     }
-})().finally(() => $.done());
+    $done({});
+})();
 
 async function getCookie() {
     // 调试日志，可以在 QX 日志中查看是否触发

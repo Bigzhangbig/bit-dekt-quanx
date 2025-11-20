@@ -32,7 +32,7 @@ const CONFIG = {
 // 脚本入口
 (async () => {
     await checkCourses();
-})().finally(() => $.done());
+})();
 
 // 监控逻辑 (运行在 Task 模式)
 async function checkCourses() {
@@ -41,6 +41,7 @@ async function checkCourses() {
     
     if (!token) {
         $.msg($.name, "❌ 未找到 Token", "请先运行 bit_cookie.js 脚本，并进入微信小程序“第二课堂”刷新任意列表以获取 Token。");
+        $done();
         return;
     }
 
@@ -113,6 +114,7 @@ async function checkCourses() {
 
     if (isTokenExpired) {
         $.msg($.name, "⚠️ Token 已失效", "请重新进入小程序刷新列表获取新的 Token");
+        $done();
         return;
     }
 
@@ -123,6 +125,8 @@ async function checkCourses() {
     } else {
         console.log("暂无新课程更新");
     }
+    
+    $done();
 }
 
 // 封装请求
