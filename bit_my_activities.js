@@ -110,19 +110,13 @@ function processItems(items) {
         // 1. 处理第一个（最紧急）活动
         const firstItem = notifyItems[0];
         const qrUrl = `${CONFIG.qrBaseUrl}${firstItem.id}`;
-        
-        // 复制二维码链接
-        if (typeof $pasteboard !== 'undefined') {
-            $pasteboard.copy(qrUrl);
-        } else {
-            console.log(`[Clipboard] Would copy: ${qrUrl}`);
-        }
+        const quickChartUrl = `https://quickchart.io/qr?text=${encodeURIComponent(qrUrl)}`;
 
         $.msg(
             $.name, 
             `⚠️ ${firstItem.action}提醒: ${firstItem.title}`, 
-            `截止时间: ${firstItem.deadline}\n已复制二维码链接，点击跳转小程序`,
-            {"open-url": "weixin://dl/business/?t=34E4TP288tr"}
+            `截止时间: ${firstItem.deadline}\n点击查看二维码`,
+            {"open-url": quickChartUrl}
         );
         console.log(`已通知: ${firstItem.title} ${firstItem.action}`);
 
@@ -134,7 +128,7 @@ function processItems(items) {
             $.msg(
                 $.name,
                 `还有 ${restItems.length} 个活动待处理`,
-                summary,
+                summary + "\n点击跳转小程序",
                 {"open-url": "weixin://dl/business/?t=34E4TP288tr"}
             );
             console.log(`已通知其余 ${restItems.length} 个活动`);
