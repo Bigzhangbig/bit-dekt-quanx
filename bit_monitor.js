@@ -16,6 +16,7 @@ const CONFIG = {
     debugKey: "bit_sc_debug", // 调试模式开关
     pickupKey: "bit_sc_pickup_mode", // 捡漏模式开关
     delayKey: "bit_sc_random_delay", // 随机延迟 Key
+    signupListKey: "bit_sc_signup_list", // 待报名列表 Key
     filterCollegeKey: "bit_sc_filter_college",
     filterGradeKey: "bit_sc_filter_grade",
     filterTypeKey: "bit_sc_filter_type",
@@ -70,6 +71,11 @@ async function checkCourses() {
     headers['Content-Type'] = 'application/json;charset=utf-8';
     if (!headers['Accept-Encoding']) {
         headers['Accept-Encoding'] = 'gzip, deflate, br';
+    }
+
+    // --- 新增：检查待报名列表 (仅 Debug 模式) ---
+    if (isDebug) {
+        await checkSignupList(token, headers);
     }
 
     // 优先处理指定报名ID
@@ -216,13 +222,27 @@ async function checkCourses() {
 
                                 // 自动设置报名ID (如果是未开始的课程)
                                 if (status === 1 && isNew) {
+                                    // 1. 加入待报名列表
+                                    let list = [];
+                                    try { list = JSON.parse($.getdata(CONFIG.signupListKey) || "[]"); } catch(e){}
+                                    if (!Array.isArray(list)) list = [];
+                                    
+                                    let listMsg = "";
+                                    if (!list.some(i => i.id == course.id)) {
+                                        list.push({ id: course.id, title: title, time: signTime });
+                                        $.setdata(JSON.stringify(list), CONFIG.signupListKey);
+                                        listMsg = "\n📝 已加入待报名列表";
+                                    }
+
+                                    // 2. 更新旧版单ID (兼容)
+                                    let autoIdMsg = "";
                                     if (course.id >= currentMaxSignupId) {
                                         $.setdata(course.id.toString(), CONFIG.signupCourseIdKey);
                                         currentMaxSignupId = course.id;
-                                        notifyMsg += `【${cat.name} | ${statusStr}】🆕 ${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}\n🎯 已自动设置报名ID: ${course.id}\n\n`;
-                                    } else {
-                                        notifyMsg += `【${cat.name} | ${statusStr}】🆕 ${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}\n\n`;
+                                        autoIdMsg = `\n🎯 已自动设置报名ID: ${course.id}`;
                                     }
+                                    
+                                    notifyMsg += `【${cat.name} | ${statusStr}】🆕 ${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}${listMsg}${autoIdMsg}\n\n`;
                                 } else if (status === 2) {
                                     // 进行中的课程，尝试自动报名
                                     let signupResultMsg = "";
@@ -342,6 +362,65 @@ async function autoSignup(courseId, token, headers) {
     }
 }
 
+async function checkSignupList(token, headers) {
+    let listStr = $.getdata(CONFIG.signupListKey) || "[]";
+    let list = [];
+    try {
+        list = JSON.parse(listStr);
+    } catch (e) {
+        console.log(`[CheckList] 解析列表失败: ${e}`);
+        return;
+    }
+
+    if (!Array.isArray(list)) list = [];
+    if (list.length === 0) return;
+
+    console.log(`[CheckList] 检查待报名列表: ${list.length} 个任务`);
+    let hasChange = false;
+    let newList = [];
+
+    for (let item of list) {
+        let shouldRun = false;
+        // 时间判断: 0 或 过去时间
+        if (item.time == "0" || item.time === 0) {
+            shouldRun = true;
+        } else {
+            // 兼容 iOS 时间格式 2025-11-21 10:00:00 -> 2025/11/21 10:00:00
+            let timeStr = (item.time || "").replace(/-/g, '/');
+            let targetTime = new Date(timeStr).getTime();
+            let now = new Date().getTime();
+            
+            // 如果解析失败(NaN)，或者时间已到
+            if (!isNaN(targetTime) && now >= targetTime) {
+                shouldRun = true;
+            } else if (isNaN(targetTime)) {
+                console.log(`[CheckList] 时间格式错误: ${item.time}，跳过`);
+            }
+        }
+
+        if (shouldRun) {
+            console.log(`[CheckList] 课程 ${item.title}(${item.id}) 到达报名时间，开始报名...`);
+            const res = await autoSignup(item.id, token, headers);
+            
+            if (res.success) {
+                $.msg("✅ 自动报名成功", "", `课程: ${item.title}\nID: ${item.id}\n${res.message}`);
+                hasChange = true; // 报名成功，移除
+                continue; // 不加入 newList
+            } else {
+                console.log(`[CheckList] 报名失败: ${res.message}`);
+                // 失败保留，继续重试
+                newList.push(item);
+            }
+        } else {
+            newList.push(item);
+        }
+    }
+
+    if (hasChange) {
+        $.setdata(JSON.stringify(newList), CONFIG.signupListKey);
+    }
+}
+
 function httpPost(options) {
     return new Promise((resolve, reject) => {
         $.post(options, (err, resp, data) => {
@@ -358,32 +437,3 @@ function httpPost(options) {
         });
     });
 }
-
-// 封装请求
-function httpGet(url, headers) {
-    return new Promise((resolve, reject) => {
-        $.get({ url, headers }, (err, resp, data) => {
-            if (err) {
-                reject(err);
-            } else {
-                if (resp.status === 401 || resp.statusCode === 401) {
-                    resolve({ code: 401, message: "Unauthenticated." });
-                    return;
-                }
-                try {
-                    resolve(JSON.parse(data));
-                } catch (e) {
-                    reject("JSON解析失败");
-                }
-            }
-        });
-    });
-}
-
-// --- 构建环境 Polyfill (兼容 QX, Loon, Surge) ---
-// 此处省略标准 Env 函数库，实际使用时请保留这一行：
-// https://github.com/chavyleung/scripts/blob/master/Env.js
-// 为了脚本简洁，建议直接引用上面的 Env.js 或者让脚本管理器自动处理
-// 这里简单实现 QX 必须的部分：
-
-function Env(t, e) { class s { constructor(t) { this.env = t } } return new class { constructor(t) { this.name = t, this.logs = [], this.isSurge = !1, this.isQuanX = "undefined" != typeof $task, this.isLoon = !1 } getdata(t) { let e = this.getval(t); if (/^@/.test(t)) { const [, s, i] = /^@(.*?)\.(.*?)$/.exec(t), r = s ? this.getval(s) : ""; if (r) try { const t = JSON.parse(r); e = t ? this.getval(i, t) : null } catch (t) { e = "" } } return e } setdata(t, e) { let s = !1; if (/^@/.test(e)) { const [, i, r] = /^@(.*?)\.(.*?)$/.exec(e), o = this.getval(i), h = i ? "null" === o ? null : o || "{}" : "{}"; try { const e = JSON.parse(h); this.setval(r, t, e), s = !0, this.setval(i, JSON.stringify(e)) } catch (e) { const o = {}; this.setval(r, t, o), s = !0, this.setval(i, JSON.stringify(o)) } } else s = this.setval(t, e); return s } getval(t) { return this.isQuanX ? $prefs.valueForKey(t) : "" } setval(t, e) { return this.isQuanX ? $prefs.setValueForKey(t, e) : "" } msg(e = t, s = "", i = "", r) { this.isQuanX && $notify(e, s, i, r) } get(t, e = (() => { })) { this.isQuanX && ("string" == typeof t && (t = { url: t }), t.method = "GET", $task.fetch(t).then(t => { e(null, t, t.body) }, t => e(t.error, null, null))) } post(t, e = (() => { })) { this.isQuanX && ("string" == typeof t && (t = { url: t }), t.method = "POST", $task.fetch(t).then(t => { e(null, t, t.body) }, t => e(t.error, null, null))) } done(t = {}) { this.isQuanX && $done(t) } }(t, e) }

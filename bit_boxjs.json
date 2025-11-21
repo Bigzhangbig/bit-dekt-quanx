@@ -16,6 +16,7 @@
         "bit_sc_debug",
         "bit_sc_pickup_mode",
         "bit_sc_random_delay",
+        "bit_sc_signup_list",
         "bit_sc_github_token",
         "bit_sc_gist_id",
         "bit_sc_gist_filename"
@@ -53,6 +54,15 @@
           "val": "0",
           "type": "text",
           "desc": "每次请求前的随机延迟上限(秒)，0为不延迟"
+        },
+        {
+          "id": "bit_sc_signup_list",
+          "name": "待报名列表(自动)",
+          "val": "[]",
+          "type": "textarea",
+          "auto_grow": true,
+          "rows": 5,
+          "desc": "自动记录的待报名课程，格式：[{\"id\":123,\"title\":\"xx\",\"time\":\"2025-..\"}]。填0或过去时间可立即报名。"
         },
         {
           "id": "bit_sc_filter_college",
