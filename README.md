@@ -1,81 +1,94 @@
-# 北理工第二课堂 Quantumult X 助手
+# 北理工第二课堂 Quantumult X 脚本
 
-本项目包含用于 Quantumult X 的脚本，实现北理工第二课堂新活动监控通知及自动/手动报名功能。
+本项目包含一套用于北理工第二课堂（微信小程序）的 Quantumult X 脚本，支持自动获取 Token、监控新活动、自动报名（捡漏）、活动签到提醒以及本地调试工具。
 
-## 功能特性
+## 脚本列表
 
-- **活动监控**：定时检查第二课堂新发布的活动，并发送通知。
-- **自动/手动报名**：配置课程 ID 后，可一键报名指定课程。
-- **多维度筛选**：支持按学院、年级、活动类型筛选通知。
-- **BoxJS 支持**：可视化配置参数，无需修改脚本代码。
+### Quantumult X 脚本
+
+1.  **`bit_cookie.js` (获取 Token)**
+    *   **功能**: 监听第二课堂小程序的网络请求，自动提取并保存 Token 和 Headers。
+    *   **使用**: 配置 Rewrite 规则，进入小程序刷新列表即可触发。
+    *   **Gist 同步**: 支持将 Token 同步到 GitHub Gist，方便多设备或本地脚本共享。
+
+2.  **`bit_monitor.js` (监控与报名)**
+    *   **功能**: 定时监控第二课堂的新活动。
+    *   **特性**:
+        *   支持按学院、年级、学生类型筛选。
+        *   支持“捡漏模式”：自动尝试报名“进行中”且有名额的活动。
+        *   支持指定课程 ID 强制报名。
+    *   **配置**: 需在 BoxJS 中配置筛选条件和开关。
+
+3.  **`bit_my_activities.js` (我的活动)**
+    *   **功能**: 定时检查“我的活动”列表。
+    *   **特性**: 在活动签到/签退时间内发送通知，并自动复制二维码链接，点击通知即可跳转。
+
+4.  **`bit_signup.js` (手动报名)**
+    *   **功能**: 单次运行脚本，对指定的课程 ID 进行报名。
+    *   **使用**: 适合在 BoxJS 中输入 ID 后手动点击运行。
+
+### 本地调试工具 (Node.js)
+
+这些脚本用于在电脑上进行调试或执行特定任务，依赖 `env.json` 配置文件。
+
+1.  **`local_debug.js`**: 本地运行 `bit_monitor.js` 的封装，用于测试监控逻辑。
+2.  **`local_signin.js`**: 本地签到工具，支持虚拟定位（随机偏移）。
+3.  **`local_get_qr.js`**: 获取当前进行中或已结束但未签退的活动二维码。
+    *   依赖 `unpack_capture.py` 进行响应解压。
+4.  **`local_sync_gist.js`**: 从 GitHub Gist 拉取最新的 Token 到本地 `env.json`。
+5.  **`unpack_capture.py`**: 通用抓包解包工具，支持 gzip 和 chunked 编码，也可用于 `local_get_qr.js` 的解压后端。
 
 ## 使用说明
 
-### 1. 添加重写规则 (Rewrite)
+### 1. Quantumult X 配置
 
-在 Quantumult X 的配置文件中添加以下重写规则，用于获取 Token 和 Headers。
+请参考 `bit_rewrite.snippet` 和 `bit_task.json` 添加重写和定时任务。
 
+**Rewrite:**
 ```conf
-[rewrite_local]
-# 获取第二课堂 Token
-^https:\/\/qcbldekt\.bit\.edu\.cn\/api\/user\/info url script-request-header https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/bit_cookie.js
+^https:\/\/qcbldekt\.bit\.edu\.cn\/api\/course\/list url script-request-header https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/bit_cookie.js
 ```
 
-### 2. 添加任务 (Task)
-
-#### 监控脚本
-建议设置为每 2 小时运行一次（8:00 - 22:00）。
-
+**Task:**
 ```conf
-[task_local]
-30 8-22/2 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/bit_monitor.js, tag=第二课堂监控, enabled=true
+# 监控脚本 (建议 2 分钟一次)
+*/2 8-22 * * * https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/bit_monitor.js, tag=第二课堂监控, img-url=https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/icon.png, enabled=true
+
+# 我的活动提醒
+0 8-22 * * * https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/bit_my_activities.js, tag=第二课堂提醒, enabled=true
 ```
 
-#### 报名脚本
-此脚本通常手动运行，或在需要抢课时设置高频定时任务。
+### 2. BoxJS 配置
 
-```conf
-[task_local]
-0 0 0 0 0 https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/bit_signup.js, tag=第二课堂报名, enabled=true
-```
+订阅地址: `https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/bit_boxjs.json`
 
-### 3. 配置 BoxJS
+在 BoxJS 中可以设置：
+*   `bit_sc_debug`: 开启调试日志
+*   `bit_sc_pickup_mode`: 开启捡漏模式
+*   `bit_sc_filter_college`: 筛选学院 (如 "计算机")
+*   `bit_sc_filter_grade`: 筛选年级 (如 "2022级")
+*   `bit_sc_gist_id` & `bit_sc_github_token`: Gist 同步配置
 
-1. 在 Quantumult X 中添加 BoxJS 订阅（如果尚未添加）。
-2. 添加本项目的 BoxJS 订阅链接：`https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/bit_boxjs.json`
-3. 在 BoxJS 应用中找到 "北理工第二课堂助手"。
-4. **获取 Token**：
-   - 打开 "i北理" 小程序 -> 第二课堂。
-   - 此时 Quantumult X 应该会弹出 "获取 Token 成功" 的通知。
-   - 回到 BoxJS，确认 `bit_sc_token` 已有值。
-5. **配置筛选**（可选）：设置感兴趣的学院、年级等。
-6. **配置报名**（可选）：
-   - 在 "报名课程ID" 中输入你想报名的课程 ID（例如 `370`）。
-   - 监控脚本在运行时会优先尝试报名此 ID 的课程。
-   - 也可以手动运行 "第二课堂报名" 任务来尝试报名。
+### 3. 本地调试
 
-## 高级功能
-
-### 自动设置报名 ID
-当监控脚本检测到状态为 **"未开始"** 的新活动时，会自动将该活动的 ID 填入 BoxJS 的 `bit_sc_signup_course_id` 中。
-你只需要在活动开始前，确保已添加并开启了报名脚本的定时任务（或手动运行一次报名脚本）。
-
-### 自动捡漏报名
-在 BoxJS 中开启 **"开启调试日志"** (Debug 模式) 后，监控脚本会尝试自动报名所有 **"进行中"**、**"未报名"** 且 **"有名额"** 的课程。
-- 适用于捡漏热门课程。
-- 成功捡漏后会发送通知。
-
-### 点击通知跳转
-收到新活动通知时，点击通知即可直接跳转到 "i北理" 小程序（需确保手机已安装微信）。
+1.  安装依赖: `npm install` (需安装 `qrcode-terminal` 等)
+2.  配置 `env.json`:
+    ```json
+    {
+        "bit_sc_token": "你的Token",
+        "bit_sc_headers": "{}",
+        "bit_sc_github_token": "...",
+        "bit_sc_gist_id": "..."
+    }
+    ```
+    或者运行 `node local_sync_gist.js` 从 Gist 同步配置。
+3.  运行脚本: `node local_get_qr.js`
 
 ## 注意事项
 
-- Token 有效期较短，如果脚本提示 Token 失效，请重新进入小程序刷新。
-- 报名功能依赖于固定的 Template ID，如果学校更改了接口，可能需要更新脚本。
-- 请勿滥用高频请求，以免被封禁。
+*   **Token 有效期**: Token 可能会过期，需要定期进入小程序刷新。
+*   **Gzip 压缩**: `bit_cookie.js` 抓取的 Headers 包含 `Accept-Encoding: gzip`。本地脚本如果直接使用该 Headers，需要确保能够处理 gzip 响应（`local_get_qr.js` 已通过 Python 脚本处理，其他脚本通常会移除该 Header）。
 
-## 抓包分析 (开发者参考)
+## 声明
 
-- 监控接口: `/api/course/list`
-- 报名接口: `/api/course/apply` (POST)
-- 报名参数: `{"course_id": 123, "template_id": "..."}`
+仅供学习交流使用，请勿用于非法用途。

@@ -57,6 +57,19 @@ async function checkCourses() {
     const filterGrade = $.getdata(CONFIG.filterGradeKey) || "不限";
     const filterType = $.getdata(CONFIG.filterTypeKey) || "不限";
 
+    if (!token) {
+        $.msg($.name, "❌ 未找到 Token", "请先运行 bit_cookie.js 脚本，并进入微信小程序“第二课堂”刷新任意列表以获取 Token。");
+        $done();
+        return;
+    }
+
+    const headers = JSON.parse(savedHeaders || "{}");
+    headers['Authorization'] = token;
+    headers['Content-Type'] = 'application/json;charset=utf-8';
+    if (!headers['Accept-Encoding']) {
+        headers['Accept-Encoding'] = 'gzip, deflate, br';
+    }
+
     // 优先处理指定报名ID
     const envSignupId = $.getdata(CONFIG.signupCourseIdKey);
     if (envSignupId) {
@@ -69,19 +82,6 @@ async function checkCourses() {
     if (isDebug) {
         console.log(`[Debug] 开始运行监控脚本`);
         console.log(`[Debug] 筛选条件: 学院[${filterCollege}], 年级[${filterGrade}], 类型[${filterType}]`);
-    }
-
-    if (!token) {
-        $.msg($.name, "❌ 未找到 Token", "请先运行 bit_cookie.js 脚本，并进入微信小程序“第二课堂”刷新任意列表以获取 Token。");
-        $done();
-        return;
-    }
-
-    const headers = JSON.parse(savedHeaders || "{}");
-    headers['Authorization'] = token;
-    headers['Content-Type'] = 'application/json;charset=utf-8';
-    if (!headers['Accept-Encoding']) {
-        headers['Accept-Encoding'] = 'gzip, deflate, br';
     }
 
     // 读取上一次的缓存数据

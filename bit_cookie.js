@@ -52,7 +52,9 @@ async function getCookie() {
                 $.setdata(auth, CONFIG.tokenKey);
                 
                 // 保存其他头部信息 (User-Agent, Referer等) 以伪装请求
-                // 显式添加 Accept-Encoding: gzip, deflate, br 以支持解密
+                // 注意：这里显式添加了 Accept-Encoding: gzip, deflate, br
+                // 这意味着后续使用此 Headers 的脚本必须能够处理 gzip 压缩的响应数据
+                // 如果脚本无法处理压缩数据，请在发送请求前移除此 Header
                 const headersToSave = JSON.stringify({
                     'User-Agent': $request.headers['User-Agent'] || $request.headers['user-agent'],
                     'Referer': referer,
