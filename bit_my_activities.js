@@ -104,6 +104,9 @@ function processItems(items) {
     }
 
     if (notifyItems.length > 0) {
+        // 按截止时间排序，优先处理最早截止的
+        notifyItems.sort((a, b) => new Date(a.deadline.replace(/-/g, '/')) - new Date(b.deadline.replace(/-/g, '/')));
+
         // 1. 处理第一个（最紧急）活动
         const firstItem = notifyItems[0];
         const qrUrl = `${CONFIG.qrBaseUrl}${firstItem.id}`;
