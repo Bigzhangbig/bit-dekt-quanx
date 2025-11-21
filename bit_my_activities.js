@@ -104,28 +104,37 @@ function processItems(items) {
     }
 
     if (notifyItems.length > 0) {
-        // 遍历通知所有待处理事项
-        for (let i = 0; i < notifyItems.length; i++) {
-            const item = notifyItems[i];
-            const qrUrl = `${CONFIG.qrBaseUrl}${item.id}`;
-            
-            // 仅复制第一个（最紧急）的二维码链接到剪贴板
-            if (i === 0) {
-                if (typeof $pasteboard !== 'undefined') {
-                    $pasteboard.copy(qrUrl);
-                } else {
-                    console.log(`[Clipboard] Would copy: ${qrUrl}`);
-                }
-            }
+        // 1. 处理第一个（最紧急）活动
+        const firstItem = notifyItems[0];
+        const qrUrl = `${CONFIG.qrBaseUrl}${firstItem.id}`;
+        
+        // 复制二维码链接
+        if (typeof $pasteboard !== 'undefined') {
+            $pasteboard.copy(qrUrl);
+        } else {
+            console.log(`[Clipboard] Would copy: ${qrUrl}`);
+        }
 
+        $.msg(
+            $.name, 
+            `⚠️ ${firstItem.action}提醒: ${firstItem.title}`, 
+            `截止时间: ${firstItem.deadline}\n已复制二维码链接，点击跳转小程序`,
+            {"open-url": "weixin://dl/business/?t=34E4TP288tr"}
+        );
+        console.log(`已通知: ${firstItem.title} ${firstItem.action}`);
+
+        // 2. 其余活动简写为一条通知
+        if (notifyItems.length > 1) {
+            const restItems = notifyItems.slice(1);
+            const summary = restItems.map(item => `[${item.action}] ${item.title}`).join('\n');
+            
             $.msg(
-                $.name, 
-                `⚠️ ${item.action}提醒: ${item.title}`, 
-                `截止时间: ${item.deadline}\n${i===0 ? '已复制二维码链接，' : ''}点击跳转小程序`,
+                $.name,
+                `还有 ${restItems.length} 个活动待处理`,
+                summary,
                 {"open-url": "weixin://dl/business/?t=34E4TP288tr"}
             );
-            
-            console.log(`已通知: ${item.title} ${item.action}`);
+            console.log(`已通知其余 ${restItems.length} 个活动`);
         }
     } else {
         console.log("没有需要签到/签退的活动");

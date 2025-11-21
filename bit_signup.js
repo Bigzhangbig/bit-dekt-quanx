@@ -42,7 +42,6 @@ async function main() {
     const headers = JSON.parse(savedHeaders || "{}");
     headers['Authorization'] = token;
     headers['Content-Type'] = 'application/json;charset=utf-8';
-    // 移除可能导致问题的 header
     delete headers['Content-Length'];
     headers['Host'] = 'qcbldekt.bit.edu.cn';
 
