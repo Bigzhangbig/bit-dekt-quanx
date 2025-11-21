@@ -9,3 +9,4 @@ local_get_qr.js
 package.json
 package-lock.json
 local_signin.js
+local_my_activities.js
