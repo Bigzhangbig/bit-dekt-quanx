@@ -105,16 +105,22 @@ async function main() {
             $.msg($.name, "⏳ 等待报名", `课程：${title}\n时间：${timeStr}\n距离开始还有 ${Math.round(diff / 60000)} 分钟，稍后重试。`);
             newList.push(item);
         } else {
-            // 需要等待或立即报名
-            if (diff > 0) {
-                console.log(`🕒 距离报名开始还有 ${Math.round(diff / 1000)} 秒，开始等待...`);
-                await waitAndLog(targetTime);
+            let result;
+            // 策略：在报名开始前0.5秒 ~ 开始后0.5秒期间，并发发送请求
+            const burstEndTime = targetTime + 500;
+            const burstStartTime = targetTime - 500;
+            
+            if (Date.now() < burstEndTime) {
+                if (Date.now() < burstStartTime) {
+                    console.log(`🕒 距离报名开始还有 ${Math.round((targetTime - Date.now()) / 1000)} 秒，等待至 T-0.5s...`);
+                    await waitAndLog(burstStartTime);
+                }
+                console.log("🚀 启动并发报名模式 (T-0.5s ~ T+0.5s)");
+                result = await burstSignup(courseId, headers, burstEndTime);
             } else {
-                console.log(`⚡ 报名时间已过或即刻开始，立即尝试报名`);
+                console.log(`⚡ 报名时间已过，立即尝试报名`);
+                result = await autoSignup(courseId, headers);
             }
-
-            // 执行报名
-            const result = await autoSignup(courseId, headers);
             
             if (result.success) {
                 console.log(`✅ 报名成功: ${result.message}`);
@@ -158,6 +164,34 @@ async function main() {
     }
     
     $.done();
+}
+
+async function burstSignup(courseId, headers, endTime) {
+    const promises = [];
+    let count = 0;
+    
+    // 循环直到结束时间
+    while (Date.now() < endTime) {
+        // 发起请求但不等待结果
+        promises.push(autoSignup(courseId, headers));
+        count++;
+        // 简单的频率控制，避免瞬间请求过多导致被封或报错，这里设为50ms
+        await new Promise(r => setTimeout(r, 50));
+    }
+    
+    console.log(`⚡ 已发送 ${count} 个并发请求，等待结果...`);
+    
+    // 等待所有请求完成
+    const results = await Promise.all(promises);
+    
+    // 检查是否有成功的
+    const success = results.find(r => r.success);
+    if (success) {
+        return success;
+    }
+    
+    // 如果都失败，返回最后一个错误
+    return results[results.length - 1] || { success: false, message: "并发报名全部失败" };
 }
 
 async function waitAndLog(targetTime) {

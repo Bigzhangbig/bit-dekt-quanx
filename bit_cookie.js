@@ -49,12 +49,10 @@ async function getCookie() {
             const oldToken = $.getdata(CONFIG.tokenKey);
             
             if (oldToken !== auth) {
-                $.setdata(auth, CONFIG.tokenKey);
-                
-                // 保存其他头部信息 (User-Agent, Referer等) 以伪装请求
-                // 注意：这里显式添加了 Accept-Encoding: gzip, deflate, br
-                // 这意味着后续使用此 Headers 的脚本必须能够处理 gzip 压缩的响应数据
-                // 如果脚本无法处理压缩数据，请在发送请求前移除此 Header
+                // 检查 Gist 上的 Token
+                const gistData = await getGist();
+                const gistToken = gistData ? gistData.token : null;
+
                 const headersToSave = JSON.stringify({
                     'User-Agent': $request.headers['User-Agent'] || $request.headers['user-agent'],
                     'Referer': referer,
@@ -62,13 +60,23 @@ async function getCookie() {
                     'Connection': 'keep-alive',
                     'Accept-Encoding': 'gzip, deflate, br'
                 });
-                $.setdata(headersToSave, CONFIG.headersKey);
-                
-                // 同步到 Gist
-                await updateGist(auth, headersToSave);
 
-                $.msg($.name, "获取Token成功", "Token已更新，请去运行监控脚本测试");
-                console.log(`[${$.name}] Token 更新成功`);
+                if (gistToken === auth) {
+                    // Token 与 Gist 一致，仅更新本地
+                    $.setdata(auth, CONFIG.tokenKey);
+                    $.setdata(headersToSave, CONFIG.headersKey);
+                    console.log(`[${$.name}] Token与Gist一致，更新本地缓存，不发送通知`);
+                } else {
+                    // Token 不一致，更新本地和 Gist
+                    $.setdata(auth, CONFIG.tokenKey);
+                    $.setdata(headersToSave, CONFIG.headersKey);
+                    
+                    // 同步到 Gist
+                    await updateGist(auth, headersToSave);
+
+                    $.msg($.name, "获取Token成功", "Token已更新，请去运行监控脚本测试");
+                    console.log(`[${$.name}] Token 更新成功`);
+                }
             } else {
                 if (isDebug) console.log(`[${$.name}] Token 未变化，跳过通知`);
             }
@@ -76,6 +84,61 @@ async function getCookie() {
             if (isDebug) console.log(`[${$.name}] 缺少必要Header，跳过`);
         }
     }
+}
+
+async function getGist() {
+    const githubToken = $.getdata(CONFIG.githubTokenKey);
+    const gistId = $.getdata(CONFIG.gistIdKey);
+    const filename = $.getdata(CONFIG.gistFileNameKey) || "bit_cookies.json";
+
+    if (!githubToken || !gistId) {
+        return null;
+    }
+
+    const url = `https://api.github.com/gists/${gistId}`;
+    const method = "GET";
+    const headers = {
+        "Authorization": `token ${githubToken}`,
+        "User-Agent": "BIT-DEKT-Script",
+        "Accept": "application/vnd.github.v3+json"
+    };
+
+    const myRequest = {
+        url: url,
+        method: method,
+        headers: headers
+    };
+
+    return new Promise((resolve) => {
+        if ($.isQuanX) {
+            $task.fetch(myRequest).then(
+                response => {
+                    if (response.statusCode === 200) {
+                        try {
+                            const body = JSON.parse(response.body);
+                            if (body.files && body.files[filename]) {
+                                const content = JSON.parse(body.files[filename].content);
+                                resolve(content);
+                            } else {
+                                resolve(null);
+                            }
+                        } catch (e) {
+                            console.log(`[${$.name}] 解析Gist失败: ${e}`);
+                            resolve(null);
+                        }
+                    } else {
+                        resolve(null);
+                    }
+                },
+                reason => {
+                    console.log(`[${$.name}] 获取Gist失败: ${reason.error}`);
+                    resolve(null);
+                }
+            );
+        } else {
+            resolve(null);
+        }
+    });
 }
 
 async function updateGist(token, headers) {
