@@ -181,6 +181,66 @@
         "https://avatars.githubusercontent.com/u/78358414",
         "https://avatars.githubusercontent.com/u/78358414"
       ]
+    },
+    {
+      "id": "bit_card",
+      "name": "北理工校园卡助手",
+      "keys": [
+        "bit_card_jsessionid",
+        "bit_card_openid",
+        "bit_sc_github_token",
+        "bit_sc_gist_id",
+        "bit_card_gist_filename"
+      ],
+      "descs_html": [
+        "请先在 Quantumult X 中添加重写规则获取 Cookie。",
+        "脚本会自动抓取校园卡流水查询所需的凭证并同步到 Gist。"
+      ],
+      "settings": [
+        {
+          "id": "bit_sc_github_token",
+          "name": "GitHub Token",
+          "val": "",
+          "type": "text",
+          "desc": "与第二课堂共用，用于自动同步Cookie到Gist"
+        },
+        {
+          "id": "bit_sc_gist_id",
+          "name": "Gist ID",
+          "val": "",
+          "type": "text",
+          "desc": "与第二课堂共用，用于存储Cookie的Gist ID"
+        },
+        {
+          "id": "bit_card_gist_filename",
+          "name": "Gist 文件名",
+          "val": "bit_card_cookies.json",
+          "type": "text",
+          "desc": "Gist中存储校园卡Cookie的文件名"
+        },
+        {
+            "id": "bit_card_jsessionid",
+            "name": "JSESSIONID (自动获取)",
+            "val": "",
+            "type": "text",
+            "desc": "无需手动填写，请通过重写获取",
+            "disabled": true
+        },
+        {
+            "id": "bit_card_openid",
+            "name": "OpenID (自动获取)",
+            "val": "",
+            "type": "text",
+            "desc": "无需手动填写，请通过重写获取",
+            "disabled": true
+        }
+      ],
+      "author": "@Bigzhangbig",
+      "repo": "https://github.com/Bigzhangbig/bit-dekt-quanx",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/BIT.png",
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/BIT.png"
+      ]
     }
   ]
 }

@@ -1,0 +1,10 @@
+#!name = 北理工校园卡Cookie获取
+#!desc = 用于获取北理工校园卡的Cookie，需在MITM中添加主机名 dkykt.info.bit.edu.cn
+#!author = Copilot
+#!homepage = https://github.com/Bigzhangbig/bit-dekt-quanx
+
+#[rewrite_local]
+^https:\/\/dkykt\.info\.bit\.edu\.cn\/selftrade\/.* url script-request-header https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_cookie.js
+
+#[mitm]
+hostname = dkykt.info.bit.edu.cn
