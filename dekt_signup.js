@@ -1,8 +1,10 @@
 /*
  * 脚本名称：北理工第二课堂-自动报名
+ * 作者：Gemini for User
  * 描述：从BoxJS读取待报名列表，自动等待并报名，成功后通知。
+ * 
  * [task_local]
- * 0 0-23/1 * * * bit_signup.js, tag=第二课堂自动报名, enabled=true
+ * 0 0-23/1 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/dekt_signup.js, tag=第二课堂自动报名, enabled=true
  */
 
 const $ = new Env("北理工第二课堂-自动报名");

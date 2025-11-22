@@ -1,19 +1,42 @@
+/*
+ * 脚本名称：本地工具-Gist同步
+ * 描述：从 GitHub Gist 拉取最新的 Token 配置到本地 .env。
+ * 用法：node local_sync_gist.js
+ */
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const envFilePath = path.join(__dirname, 'env.json');
+const envFilePath = path.join(__dirname, '.env');
 
 function loadEnv() {
     if (fs.existsSync(envFilePath)) {
-        return JSON.parse(fs.readFileSync(envFilePath, 'utf8'));
+        const content = fs.readFileSync(envFilePath, 'utf8');
+        const result = {};
+        content.split('\n').forEach(line => {
+            line = line.trim();
+            if (line && !line.startsWith('#')) {
+                const parts = line.split('=');
+                const key = parts[0].trim();
+                const val = parts.slice(1).join('=').trim();
+                if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                    result[key] = val.slice(1, -1);
+                } else {
+                    result[key] = val;
+                }
+            }
+        });
+        return result;
     }
     return {};
 }
 
 function saveEnv(data) {
-    fs.writeFileSync(envFilePath, JSON.stringify(data, null, 4));
-    console.log("[System] env.json updated.");
+    const content = Object.entries(data)
+        .map(([key, val]) => `${key}=${val}`)
+        .join('\n');
+    fs.writeFileSync(envFilePath, content);
+    console.log("[System] .env updated.");
 }
 
 async function syncFromGist() {
@@ -23,8 +46,8 @@ async function syncFromGist() {
     const filename = envData.bit_sc_gist_filename || "bit_cookies.json";
 
     if (!githubToken || !gistId) {
-        console.error("❌ Missing Gist configuration in env.json (bit_sc_github_token, bit_sc_gist_id)");
-        console.log("Please fill in these fields in env.json to enable Gist sync.");
+        console.error("❌ Missing Gist configuration in .env (bit_sc_github_token, bit_sc_gist_id)");
+        console.log("Please fill in these fields in .env to enable Gist sync.");
         return;
     }
 

@@ -1,11 +1,11 @@
 /*
  * 脚本名称：北理工第二课堂签到
- * 描述：自动检查已报名课程并进行签到/签退
  * 作者：Gemini for User
+ * 描述：自动检查已报名课程并进行签到/签退。
  * 
  * [task_local]
  * # 签到脚本 (默认关闭，需手动运行或开启)
- * 0 8-22/1 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/bit_signin.js, tag=第二课堂签到, enabled=false
+ * 0 8-22/1 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/dekt_signin.js, tag=第二课堂签到, enabled=false
  */
 
 const $ = new Env("北理工第二课堂签到");

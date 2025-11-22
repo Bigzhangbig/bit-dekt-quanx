@@ -1,9 +1,10 @@
 /*
  * 脚本名称：北理工第二课堂-我的活动
+ * 作者：Gemini for User
  * 描述：查看个人报名列表，若有待签到/签退活动且在时间内，发送通知并复制二维码链接。
- * 配置：请在 Quantumult X 配置文件中添加 task_local
+ * 
  * [task_local]
- * 0 8-22 * * * bit_my_activities.js, tag=第二课堂我的活动, enabled=true
+ * 0 8-22 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/dekt_my_activities.js, tag=第二课堂我的活动, enabled=true
  */
 
 const $ = new Env("北理工第二课堂-我的活动");

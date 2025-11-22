@@ -1,8 +1,10 @@
 /*
  * 脚本名称：北理工第二课堂监控
  * 作者：Gemini for User
- * * [task_local]
- * 30 8-22/2 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/bit_monitor.js, tag=第二课堂监控, enabled=true
+ * 描述：定时监控第二课堂的新活动，支持筛选和自动报名（捡漏）。
+ * 
+ * [task_local]
+ * 30 8-22/2 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/dekt_monitor.js, tag=第二课堂监控, enabled=true
  * */
 
 const $ = new Env("北理工第二课堂");

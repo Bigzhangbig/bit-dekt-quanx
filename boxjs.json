@@ -188,15 +188,32 @@
       "keys": [
         "bit_card_jsessionid",
         "bit_card_openid",
+        "bit_card_min_balance",
+        "bit_card_debug",
         "bit_sc_github_token",
         "bit_sc_gist_id",
         "bit_card_gist_filename"
       ],
       "descs_html": [
         "请先在 Quantumult X 中添加重写规则获取 Cookie。",
-        "脚本会自动抓取校园卡流水查询所需的凭证并同步到 Gist。"
+        "脚本会自动抓取校园卡流水查询所需的凭证并同步到 Gist。",
+        "新增：余额监控功能，低于设定值时发送通知。"
       ],
       "settings": [
+        {
+          "id": "bit_card_min_balance",
+          "name": "余额提醒阈值",
+          "val": "20",
+          "type": "text",
+          "desc": "当余额低于此金额(元)时发送通知"
+        },
+        {
+          "id": "bit_card_debug",
+          "name": "开启调试日志",
+          "val": false,
+          "type": "boolean",
+          "desc": "开启后打印详细日志"
+        },
         {
           "id": "bit_sc_github_token",
           "name": "GitHub Token",

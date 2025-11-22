@@ -1,93 +1,98 @@
-# 北理工第二课堂 Quantumult X 脚本
+# 北理工 Quantumult X 脚本合集
 
-本项目包含一套用于北理工第二课堂（微信小程序）的 Quantumult X 脚本，支持自动获取 Token、监控新活动、自动报名（捡漏）、活动签到提醒以及本地调试工具。
+本项目包含用于北理工**第二课堂**（微信小程序）和**校园卡**的 Quantumult X 脚本，支持自动获取 Token、监控新活动、自动报名、活动签到提醒、校园卡余额监控等功能。
 
 ## 脚本列表
 
-### Quantumult X 脚本
+### 1. 第二课堂 (Second Classroom)
 
-1.  **`bit_cookie.js` (获取 Token)**
+前缀: `dekt_`
+
+*   **`dekt_cookie.js` (获取 Token)**
     *   **功能**: 监听第二课堂小程序的网络请求，自动提取并保存 Token 和 Headers。
     *   **使用**: 配置 Rewrite 规则，进入小程序刷新列表即可触发。
-    *   **Gist 同步**: 支持将 Token 同步到 GitHub Gist，方便多设备或本地脚本共享。
+    *   **Gist 同步**: 支持将 Token 同步到 GitHub Gist。
 
-2.  **`bit_monitor.js` (监控与报名)**
+*   **`dekt_monitor.js` (监控与报名)**
     *   **功能**: 定时监控第二课堂的新活动。
-    *   **特性**:
-        *   支持按学院、年级、学生类型筛选。
-        *   支持“捡漏模式”：自动尝试报名“进行中”且有名额的活动。
-        *   支持指定课程 ID 强制报名。
-    *   **配置**: 需在 BoxJS 中配置筛选条件和开关。
+    *   **特性**: 支持按学院/年级筛选、捡漏模式、指定 ID 报名。
 
-3.  **`bit_my_activities.js` (我的活动)**
-    *   **功能**: 定时检查“我的活动”列表。
-    *   **特性**: 在活动签到/签退时间内发送通知，并自动复制二维码链接，点击通知即可跳转。
+*   **`dekt_my_activities.js` (我的活动)**
+    *   **功能**: 定时检查“我的活动”列表，在签到/签退时间内发送通知并提供二维码链接。
 
-4.  **`bit_signup.js` (手动报名)**
+*   **`dekt_signup.js` (手动报名)**
     *   **功能**: 单次运行脚本，对指定的课程 ID 进行报名。
-    *   **使用**: 适合在 BoxJS 中输入 ID 后手动点击运行。
 
-### 本地调试工具 (Node.js)
+*   **`dekt_signin.js` (自动签到)**
+    *   **功能**: 自动检查已报名课程并进行签到/签退（需配合 BoxJS 配置）。
 
-这些脚本用于在电脑上进行调试或执行特定任务，依赖 `env.json` 配置文件。
+### 2. 校园卡 (Campus Card)
 
-1.  **`local_debug.js`**: 本地运行 `bit_monitor.js` 的封装，用于测试监控逻辑。
-2.  **`local_signin.js`**: 本地签到工具，支持虚拟定位（随机偏移）。
-3.  **`local_get_qr.js`**: 获取当前进行中或已结束但未签退的活动二维码。
-    *   依赖 `unpack_capture.py` 进行响应解压。
-4.  **`local_sync_gist.js`**: 从 GitHub Gist 拉取最新的 Token 到本地 `env.json`。
-5.  **`unpack_capture.py`**: 通用抓包解包工具，支持 gzip 和 chunked 编码，也可用于 `local_get_qr.js` 的解压后端。
+前缀: `card_`
+
+*   **`card_cookie.js` (获取 Cookie)**
+    *   **功能**: 监听校园卡查询页面的请求，获取 Session ID 和 OpenID。
+    *   **使用**: 进入“北理工校园卡”微信公众号 -> 账单查询，触发重写。
+
+*   **`card_balance.js` (余额监控)**
+    *   **功能**: 定时查询校园卡余额，低于设定值时发送通知。
+
+*   **`card_query_trade.py` (交易查询)**
+    *   **功能**: Python 脚本，用于查询校园卡交易流水（需本地运行）。
+
+### 3. 本地调试工具 (Node.js)
+
+前缀: `local_`
+
+*   **`local_dekt_debug.js`**: 本地运行 `dekt_monitor.js` 的封装。
+*   **`local_dekt_signin.js`**: 本地签到工具，支持虚拟定位。
+*   **`local_dekt_get_qr.js`**: 获取活动二维码（依赖 `unpack_capture.py`）。
+*   **`local_sync_gist.js`**: 从 Gist 同步配置到本地 `.env`。
+*   **`unpack_capture.py`**: 抓包解包工具。
 
 ## 使用说明
 
 ### 1. Quantumult X 配置
 
-请参考 `bit_rewrite.snippet` 和 `bit_task.json` 添加重写和定时任务。
+**Rewrite (重写):**
+请参考 `dekt_rewrite.snippet` (第二课堂) 和 `card_rewrite.snippet` (校园卡)。
 
-**Rewrite:**
 ```conf
-^https:\/\/qcbldekt\.bit\.edu\.cn\/api\/course\/list url script-request-header https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/bit_cookie.js
+# 第二课堂 Cookie
+^https:\/\/qcbldekt\.bit\.edu\.cn\/api\/course\/list url script-request-header https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/dekt_cookie.js
+
+# 校园卡 Cookie
+^https:\/\/dkykt\.info\.bit\.edu\.cn\/selftrade\/.* url script-request-header https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_cookie.js
 ```
 
-**Task:**
-```conf
-# 监控脚本 (建议 2 分钟一次)
-*/2 8-22 * * * https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/bit_monitor.js, tag=第二课堂监控, img-url=https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/icon.png, enabled=true
+**Task (定时任务):**
+请参考 `dekt_task.json`。
 
-# 我的活动提醒
-0 8-22 * * * https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/bit_my_activities.js, tag=第二课堂提醒, enabled=true
+```conf
+# 第二课堂监控 (建议 2 分钟一次)
+*/2 8-22 * * * https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/dekt_monitor.js, tag=第二课堂监控, enabled=true
+
+# 第二课堂提醒
+0 8-22 * * * https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/dekt_my_activities.js, tag=第二课堂提醒, enabled=true
+
+# 校园卡余额监控 (每天中午 12 点)
+0 12 * * * https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_balance.js, tag=校园卡余额监控, enabled=true
 ```
 
 ### 2. BoxJS 配置
 
-订阅地址: `https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/bit_boxjs.json`
-
-在 BoxJS 中可以设置：
-*   `bit_sc_debug`: 开启调试日志
-*   `bit_sc_pickup_mode`: 开启捡漏模式
-*   `bit_sc_filter_college`: 筛选学院 (如 "计算机")
-*   `bit_sc_filter_grade`: 筛选年级 (如 "2022级")
-*   `bit_sc_gist_id` & `bit_sc_github_token`: Gist 同步配置
+订阅地址: `https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/boxjs.json`
 
 ### 3. 本地调试
 
-1.  安装依赖: `npm install` (需安装 `qrcode-terminal` 等)
-2.  配置 `env.json`:
-    ```json
-    {
-        "bit_sc_token": "你的Token",
-        "bit_sc_headers": "{}",
-        "bit_sc_github_token": "...",
-        "bit_sc_gist_id": "..."
-    }
-    ```
-    或者运行 `node local_sync_gist.js` 从 Gist 同步配置。
-3.  运行脚本: `node local_get_qr.js`
+1.  安装依赖: `npm install`
+2.  配置 `.env` (或通过 `local_sync_gist.js` 同步)。
+3.  运行对应脚本，例如 `node local_dekt_debug.js`。
 
 ## 注意事项
 
-*   **Token 有效期**: Token 可能会过期，需要定期进入小程序刷新。
-*   **Gzip 压缩**: `bit_cookie.js` 抓取的 Headers 包含 `Accept-Encoding: gzip`。本地脚本如果直接使用该 Headers，需要确保能够处理 gzip 响应（`local_get_qr.js` 已通过 Python 脚本处理，其他脚本通常会移除该 Header）。
+*   **Token/Cookie 有效期**: 需定期进入相应的小程序/页面刷新以更新 Token。
+*   **Gzip**: 本地脚本需注意处理 Gzip 压缩的响应。
 
 ## 声明
 

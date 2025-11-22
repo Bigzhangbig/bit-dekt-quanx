@@ -1,6 +1,7 @@
 /*
  * 脚本名称：北理工校园卡-获取Cookie
  * 作者：Copilot for User
+ * 描述：监听校园卡查询页面的请求，获取 Session ID 和 OpenID。
  * 
  * [rewrite_local]
  * ^https:\/\/dkykt\.info\.bit\.edu\.cn\/selftrade\/.* url script-request-header https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_cookie.js
