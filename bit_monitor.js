@@ -7,7 +7,7 @@
 
 const $ = new Env("北理工第二课堂");
 
-console.log("加载脚本: 北理工第二课堂监控 (v20251121-Fix)");
+console.log("加载脚本: 北理工第二课堂监控 (v20251122)");
 
 // 配置项
 const CONFIG = {
@@ -17,6 +17,7 @@ const CONFIG = {
     cacheKey: "bit_sc_cache", // 用来存上一次的最新课程ID
     debugKey: "bit_sc_debug", // 调试模式开关
     pickupKey: "bit_sc_pickup_mode", // 捡漏模式开关
+    notifyNoUpdateKey: "bit_sc_notify_no_update", // 无更新通知开关
     delayKey: "bit_sc_random_delay", // 随机延迟 Key
     signupListKey: "bit_sc_signup_list", // 待报名列表 Key
     filterCollegeKey: "bit_sc_filter_college",
@@ -56,6 +57,7 @@ async function checkCourses() {
     const savedHeaders = $.getdata(CONFIG.headersKey);
     const isDebug = $.getdata(CONFIG.debugKey) === "true";
     const isPickupMode = $.getdata(CONFIG.pickupKey) === "true";
+    const isNotifyNoUpdate = $.getdata(CONFIG.notifyNoUpdateKey) === "true";
     const randomDelay = parseInt($.getdata(CONFIG.delayKey) || "0");
     
     // 获取筛选配置
@@ -334,7 +336,7 @@ async function checkCourses() {
         $.msg("🆕 发现新课程", "", notifyMsg, { "open-url": openUrl });
         $.setdata(JSON.stringify(cache), CONFIG.cacheKey);
     } else {
-        if (isDebug) {
+        if (isDebug || isNotifyNoUpdate) {
             $.msg("🔍 监控完成", "", `共获取课程: ${totalFetchedCount}\n未开始课程: ${unstartedCount}\n暂无新课程`, { "open-url": openUrl });
             console.log(`[Debug] 暂无新课程更新`);
         } else {

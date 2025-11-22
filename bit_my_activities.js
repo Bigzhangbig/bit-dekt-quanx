@@ -78,7 +78,7 @@ function processItems(items) {
 
     for (const item of items) {
         // status_label: "待签到", "待签退", "进行中" 等
-        // status: 0 (待签到?), 1 (待签退?), 2 (补卡?), 3 (已结束?) - 需根据实际抓包确认，这里主要用 status_label
+        // status: 0 (待签到), 1 (待签退), 2 (补卡), 3 (已结束) 
         // 抓包示例: status:0 -> 待签到, status:1 -> 待签退
         
         const isSignIn = item.status_label.includes("待签到");

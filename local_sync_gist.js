@@ -37,7 +37,8 @@ async function syncFromGist() {
         headers: {
             'User-Agent': 'Node.js Script',
             'Authorization': `token ${githubToken}`
-        }
+        },
+        rejectUnauthorized: false // 忽略 SSL 证书错误
     };
 
     const req = https.request(options, (res) => {

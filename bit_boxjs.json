@@ -15,6 +15,7 @@
         "bit_sc_signup_course_id",
         "bit_sc_blacklist",
         "bit_sc_debug",
+        "bit_sc_notify_no_update",
         "bit_sc_pickup_mode",
         "bit_sc_random_delay",
         "bit_sc_signup_list",
@@ -48,6 +49,13 @@
           "val": false,
           "type": "boolean",
           "desc": "开启后打印详细日志，方便排查问题"
+        },
+        {
+          "id": "bit_sc_notify_no_update",
+          "name": "无新课程通知",
+          "val": false,
+          "type": "boolean",
+          "desc": "开启后，即使没有新课程也会发送通知（心跳检测）"
         },
         {
           "id": "bit_sc_pickup_mode",
