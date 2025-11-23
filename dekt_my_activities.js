@@ -14,7 +14,15 @@ const CONFIG = {
     tokenKey: "bit_sc_token",
     listUrl: "https://qcbldekt.bit.edu.cn/api/transcript/course/signIn/list?page=1&limit=20&type=1",
     infoUrl: "https://qcbldekt.bit.edu.cn/api/transcript/checkIn/info",
-    qrBaseUrl: "https://qcbldekt.bit.edu.cn/qrcode/event/?course_id="
+    qrBaseUrl: "https://qcbldekt.bit.edu.cn/qrcode/event/?course_id=",
+    categories: [
+        { id: 1, name: "理想信念" },
+        { id: 2, name: "科学素养" },
+        { id: 3, name: "社会贡献" },
+        { id: 4, name: "团队协作" },
+        { id: 5, name: "文化互鉴" },
+        { id: 6, name: "健康生活" }
+    ]
 };
 
 (async () => {
@@ -114,6 +122,10 @@ async function processItems(items, headers) {
                     const signInEnd = info ? info.sign_in_end_time : item.sign_in_end_time;
                     const signOutStart = info ? info.sign_out_start_time : item.sign_out_start_time;
                     const signOutEnd = info ? info.sign_out_end_time : item.sign_out_end_time;
+                    
+                    // 获取分类名称
+                    const category = CONFIG.categories.find(c => c.id === item.transcript_index_id);
+                    const categoryName = category ? category.name : "未知分类";
 
                     notifyItems.push({
                         title: item.course_title,
@@ -123,7 +135,9 @@ async function processItems(items, headers) {
                         signInStart: signInStart,
                         signInEnd: signInEnd,
                         signOutStart: signOutStart,
-                        signOutEnd: signOutEnd
+                        signOutEnd: signOutEnd,
+                        category: categoryName,
+                        statusLabel: item.status_label
                     });
                 }
             }
@@ -137,7 +151,7 @@ async function processItems(items, headers) {
         // 打印所有待参加活动的签到时间段和签退时间段
         console.log("待参加活动列表详情:");
         notifyItems.forEach(item => {
-            console.log(`[${item.id}] [${item.action}] ${item.title}`);
+            console.log(`【${item.category} | ${item.statusLabel}】[${item.id}] [${item.action}] ${item.title}`);
             console.log(`  签到时间: ${item.signInStart || '未设置'} - ${item.signInEnd || '未设置'}`);
             console.log(`  签退时间: ${item.signOutStart || '未设置'} - ${item.signOutEnd || '未设置'}`);
         });
@@ -147,8 +161,7 @@ async function processItems(items, headers) {
         const qrUrl = `${CONFIG.qrBaseUrl}${firstItem.id}`;
         const quickChartUrl = `https://quickchart.io/qr?text=${encodeURIComponent(qrUrl)}`;
         
-        let msgBody = `截止: ${firstItem.deadline}`;
-        msgBody += `\n签到: ${firstItem.signInStart || '未设置'} - ${firstItem.signInEnd || '未设置'}`;
+        let msgBody = `签到: ${firstItem.signInStart || '未设置'} - ${firstItem.signInEnd || '未设置'}`;
         msgBody += `\n签退: ${firstItem.signOutStart || '未设置'} - ${firstItem.signOutEnd || '未设置'}`;
 
         $.msg(
