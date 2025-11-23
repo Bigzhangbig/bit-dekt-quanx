@@ -57,6 +57,69 @@ async function checkAndSignIn() {
     // 移除可能导致问题的 Content-Length (QX 会自动处理)
     if (headers['Content-Length']) delete headers['Content-Length'];
 
+    // 检查是否有指定的 Course ID (支持单个或多个)
+    let targetIds = [];
+    if (typeof global !== 'undefined') {
+        if (global.DEKT_TARGET_IDS && Array.isArray(global.DEKT_TARGET_IDS)) {
+            targetIds = global.DEKT_TARGET_IDS;
+        } else if (global.DEKT_TARGET_ID) {
+            targetIds = [global.DEKT_TARGET_ID];
+        }
+    } else {
+        const forcedId = $.getdata("DEKT_TARGET_ID");
+        if (forcedId) {
+            // 支持逗号分隔
+            targetIds = forcedId.split(/[,，]/).map(s => s.trim()).filter(s => s);
+        }
+    }
+
+    if (targetIds.length > 0) {
+        console.log(`🎯 [调试模式] 检测到指定课程 ID: ${targetIds.join(', ')}`);
+        
+        for (const tId of targetIds) {
+            console.log(`\n--- 处理课程 ID: ${tId} ---`);
+            const info = await getCourseInfo(tId, headers);
+            if (info) {
+                const now = new Date();
+                let typeStr = "";
+                let canSign = false;
+
+                if (info.sign_in_start_time) {
+                    const start = new Date(info.sign_in_start_time.replace(/-/g, '/'));
+                    const end = new Date(info.sign_in_end_time.replace(/-/g, '/'));
+                    if (now >= start && now <= end) {
+                        canSign = true;
+                        typeStr = "签到";
+                    }
+                }
+                
+                if (!canSign && info.sign_out_start_time) {
+                    const start = new Date(info.sign_out_start_time.replace(/-/g, '/'));
+                    const end = new Date(info.sign_out_end_time.replace(/-/g, '/'));
+                    if (now >= start && now <= end) {
+                        canSign = true;
+                        typeStr = "签退";
+                    }
+                }
+
+                if (canSign) {
+                    await executeSign(tId, info, headers, typeStr, info.course_title || "指定课程");
+                } else {
+                    console.log(`⏳ [${tId}] 当前不在签到/签退时间范围内`);
+                    if (info.sign_in_start_time) console.log(`签到: ${info.sign_in_start_time} - ${info.sign_in_end_time}`);
+                    if (info.sign_out_start_time) console.log(`签退: ${info.sign_out_start_time} - ${info.sign_out_end_time}`);
+                }
+            }
+        }
+        return;
+    }
+
+    // 本地调试保护：如果没有指定 ID 且开启了保护，则不执行批量签到
+    if (typeof global !== 'undefined' && global.DEKT_BLOCK_LIST_MODE) {
+        console.log("🛑 [调试模式] 批量签到已禁用。请指定课程 ID 运行，或修改调试脚本以允许批量签到。");
+        return;
+    }
+
     console.log("🔍 正在获取已报名课程列表...");
     
     try {
@@ -121,26 +184,7 @@ async function checkAndSignIn() {
             }
 
             if (canSign) {
-                console.log(`🚀 开始执行${typeStr}...`);
-                // 获取位置信息
-                if (info.sign_in_address && info.sign_in_address.length > 0) {
-                    const target = info.sign_in_address[0]; // 取第一个位置
-                    const range = parseFloat(target.range) || 200;
-                    const baseLat = parseFloat(target.latitude);
-                    const baseLon = parseFloat(target.longitude);
-                    const address = target.address;
-
-                    // 生成随机坐标
-                    const { lat, lon } = getRandomCoordinate(baseLat, baseLon, range);
-                    console.log(`📍 目标位置: ${address} (${baseLat}, ${baseLon}), 范围: ${range}m`);
-                    console.log(`🎲 随机位置: (${lat}, ${lon})`);
-
-                    // 执行签到
-                    await doSignIn(course.course_id, lat, lon, address, headers, typeStr, course.course_title);
-                } else {
-                    console.log("❌ 未找到签到位置信息");
-                    $.msg($.name, `${typeStr}失败`, `课程: ${course.course_title}\n原因: 未找到位置信息`);
-                }
+                await executeSign(course.course_id, info, headers, typeStr, course.course_title);
             }
         }
 
@@ -184,16 +228,53 @@ async function doSignIn(courseId, lat, lon, address, headers, typeStr, courseTit
     try {
         const result = await httpPost(options);
         console.log(`📝 ${typeStr}结果: ${JSON.stringify(result)}`);
-        if (result.code === 200) {
+        if (result && result.code === 200) {
             console.log(`✅ ${typeStr}成功！`);
             $.msg($.name, `${typeStr}成功`, `课程: ${courseTitle}\n位置: ${address}`);
         } else {
             console.log(`❌ ${typeStr}失败！`);
-            $.msg($.name, `${typeStr}失败`, `课程: ${courseTitle}\n原因: ${result.msg || "未知错误"}`);
+            let failReason = "未知错误";
+            if (result) {
+                if (typeof result === 'object') {
+                    failReason = result.msg || result.message || result.error || JSON.stringify(result);
+                } else {
+                    failReason = String(result);
+                }
+            }
+            $.msg($.name, `${typeStr}失败`, `课程: ${courseTitle}\n原因: ${failReason}`);
         }
     } catch (e) {
         console.error(`❌ ${typeStr}请求异常: ${e}`);
-        $.msg($.name, `${typeStr}异常`, `课程: ${courseTitle}\n错误: ${e}`);
+        const errStr = (e && e.message) ? e.message : String(e);
+        $.msg($.name, `${typeStr}异常`, `课程: ${courseTitle}\n错误: ${errStr}`);
+    }
+}
+
+async function executeSign(courseId, info, headers, typeStr, courseTitle) {
+    console.log(`🚀 开始执行${typeStr}...`);
+    // 获取位置信息
+    if (info.sign_in_address && info.sign_in_address.length > 0) {
+        const target = info.sign_in_address[0]; // 取第一个位置
+        const range = parseFloat(target.range) || 200;
+        const baseLat = parseFloat(target.latitude);
+        const baseLon = parseFloat(target.longitude);
+        const address = target.address;
+
+        // 生成随机坐标
+        const { lat, lon } = getRandomCoordinate(baseLat, baseLon, range);
+        console.log(`📍 目标位置: ${address} (${baseLat}, ${baseLon}), 范围: ${range}m`);
+        console.log(`🎲 随机位置: (${lat}, ${lon})`);
+
+        // 执行签到
+        await doSignIn(courseId, lat, lon, address, headers, typeStr, courseTitle);
+
+        // 增加随机延时，避免并发过快
+        const delay = Math.floor(Math.random() * 15000) + 15000; // 15-30秒
+        console.log(`⏳ 等待 ${(delay / 1000).toFixed(1)} 秒...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+    } else {
+        console.log("❌ 未找到签到位置信息");
+        $.msg($.name, `${typeStr}失败`, `课程: ${courseTitle}\n原因: 未找到位置信息`);
     }
 }
 

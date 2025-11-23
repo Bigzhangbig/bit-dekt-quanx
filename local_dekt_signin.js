@@ -23,6 +23,16 @@ if (!fs.existsSync(scriptPath)) {
 
 const scriptContent = fs.readFileSync(scriptPath, 'utf8');
 
+// 获取命令行参数中的 course_id
+const args = process.argv.slice(2);
+if (args.length > 0) {
+    global.DEKT_TARGET_IDS = args;
+    console.log(`[Local Debug] 指定课程 ID: ${global.DEKT_TARGET_IDS.join(', ')}`);
+} else {
+    console.log(`[Local Debug] 未指定课程 ID，默认禁用批量签到 (防止误操作)`);
+    global.DEKT_BLOCK_LIST_MODE = true;
+}
+
 // Remove the Env definition from the script content to avoid conflict and use our local Env
 const cleanScriptContent = scriptContent.replace(/function Env\s*\(.*?\)\s*\{[\s\S]*\}/, '// Env definition removed');
 

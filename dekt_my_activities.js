@@ -135,6 +135,7 @@ async function processItems(items, headers) {
                     }
                     
                     const categoryName = category ? category.name : (info && info.transcript_name) || "未知分类";
+                    const duration = (info && info.duration) || item.duration;
 
                     notifyItems.push({
                         title: item.course_title,
@@ -146,7 +147,8 @@ async function processItems(items, headers) {
                         signOutStart: signOutStart,
                         signOutEnd: signOutEnd,
                         category: categoryName,
-                        statusLabel: item.status_label
+                        statusLabel: item.status_label,
+                        duration: duration
                     });
                 }
             }
@@ -163,6 +165,7 @@ async function processItems(items, headers) {
             console.log(`【${item.category} | ${item.statusLabel}】[${item.id}] [${item.action}] ${item.title}`);
             console.log(`  签到时间: ${item.signInStart || '未设置'} - ${item.signInEnd || '未设置'}`);
             console.log(`  签退时间: ${item.signOutStart || '未设置'} - ${item.signOutEnd || '未设置'}`);
+            console.log(`  时长: ${item.duration || '未知'}`);
         });
 
         // 1. 处理第一个（最紧急）活动
