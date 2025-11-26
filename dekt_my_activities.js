@@ -13,7 +13,12 @@ console.log("脚本开始运行");
 const CONFIG = {
     tokenKey: "bit_sc_token",
     listUrl: "https://qcbldekt.bit.edu.cn/api/transcript/course/signIn/list?page=1&limit=20&type=1",
-    infoUrl: "https://qcbldekt.bit.edu.cn/api/transcript/checkIn/info",
+    // 旧的 infoUrl 仅提供签到/签退时间
+    // infoUrl: "https://qcbldekt.bit.edu.cn/api/transcript/checkIn/info",
+    // 新增：按职责分离
+    checkInInfoUrl: "https://qcbldekt.bit.edu.cn/api/transcript/checkIn/info",
+    courseInfoUrl: "https://qcbldekt.bit.edu.cn/api/transcript/course/info",
+    myCourseListUrl: "https://qcbldekt.bit.edu.cn/api/transcript/course/list/my?page=1&limit=200",
     qrBaseUrl: "https://qcbldekt.bit.edu.cn/qrcode/event/?course_id=",
     categories: [
         { id: 1, name: "理想信念" },
@@ -23,6 +28,12 @@ const CONFIG = {
         { id: 5, name: "文化互鉴" },
         { id: 6, name: "健康生活" }
     ]
+};
+
+// 内存缓存，减少接口请求次数
+const CACHE = {
+    myCourseList: null,
+    myCourseListFetchedAt: 0
 };
 
 (async () => {
@@ -82,18 +93,84 @@ function httpGet(url, headers) {
     });
 }
 
-async function getCourseInfo(courseId, headers) {
-    const url = `${CONFIG.infoUrl}?course_id=${courseId}`;
+// 兜底：获取“我的课程列表”，用于补齐时长/分类等元数据（带缓存）
+async function getMyCourseList(headers) {
+    const now = Date.now();
+    // 简单的 5 分钟缓存
+    if (CACHE.myCourseList && (now - CACHE.myCourseListFetchedAt < 5 * 60 * 1000)) {
+        return CACHE.myCourseList;
+    }
     try {
-        const data = await httpGet(url, headers);
-        if (data && data.code === 200) {
-            return data.data;
+        const data = await httpGet(CONFIG.myCourseListUrl, headers);
+        if (data && data.code === 200 && data.data && Array.isArray(data.data.items)) {
+            CACHE.myCourseList = data.data.items;
+            CACHE.myCourseListFetchedAt = now;
+            return CACHE.myCourseList;
         }
-        return null;
+    } catch (e) {
+        console.log(`获取我的课程列表失败: ${e}`);
+    }
+    return [];
+}
+
+// 合并获取课程详细信息：
+// 1) checkIn/info 获取签到与签退时间段
+// 2) course/info 获取 duration/transcript 等元数据
+// 3) 若仍缺失 duration，再从 course/list/my 兜底补齐
+async function getCourseInfo(courseId, headers) {
+    const result = {};
+    // 1) 签到/签退时间段
+    try {
+        const checkIn = await httpGet(`${CONFIG.checkInInfoUrl}?course_id=${courseId}`, headers);
+        if (checkIn && checkIn.code === 200 && checkIn.data) {
+            Object.assign(result, checkIn.data);
+        }
+    } catch (e) {
+        console.log(`获取签到详情失败: ${e}`);
+    }
+
+    // 2) 课程详情（补齐时长/分类）
+    try {
+        const course = await httpGet(`${CONFIG.courseInfoUrl}?course_id=${courseId}`, headers);
+        if (course && course.code === 200 && course.data) {
+            // 以 checkIn 的时间段为准，其他元数据从 course 补齐
+            const { 
+                sign_in_start_time, sign_in_end_time, 
+                sign_out_start_time, sign_out_end_time 
+            } = result;
+            Object.assign(result, course.data);
+            if (sign_in_start_time) result.sign_in_start_time = sign_in_start_time;
+            if (sign_in_end_time) result.sign_in_end_time = sign_in_end_time;
+            if (sign_out_start_time) result.sign_out_start_time = sign_out_start_time;
+            if (sign_out_end_time) result.sign_out_end_time = sign_out_end_time;
+        }
     } catch (e) {
         console.log(`获取课程详情失败: ${e}`);
-        return null;
     }
+
+    // 3) 兜底：我的课程列表
+    if (result.duration == null) {
+        try {
+            const items = await getMyCourseList(headers);
+            const found = items.find(x => {
+                // 兼容字段名差异
+                return String(x.course_id || x.id) === String(courseId);
+            });
+            if (found) {
+                if (found.duration != null) result.duration = found.duration;
+                if (result.transcript_index_id == null && found.transcript_index_id != null) {
+                    result.transcript_index_id = found.transcript_index_id;
+                }
+                if (result.transcript_name == null && found.transcript_name != null) {
+                    result.transcript_name = found.transcript_name;
+                }
+            }
+        } catch (e) {
+            console.log(`从我的课程列表兜底获取时长失败: ${e}`);
+        }
+    }
+
+    return result;
 }
 
 async function processItems(items, headers) {
@@ -105,8 +182,8 @@ async function processItems(items, headers) {
         // status: 0 (待签到), 1 (待签退), 2 (补卡), 3 (已结束) 
         // 抓包示例: status:0 -> 待签到, status:1 -> 待签退
         
-        const isSignIn = item.status_label.includes("待签到");
-        const isSignOut = item.status_label.includes("待签退");
+        const isSignIn = item.status_label && item.status_label.includes("待签到");
+        const isSignOut = item.status_label && item.status_label.includes("待签退");
 
         if (isSignIn || isSignOut) {
             const endTimeStr = isSignIn ? item.sign_in_end_time : item.sign_out_end_time;
@@ -116,26 +193,24 @@ async function processItems(items, headers) {
                 
                 // 如果当前时间在结束时间之前
                 if (now < endTime) {
-                    // 获取详细信息以得到准确的开始时间
+                    // 获取详细信息：时间段 + 时长 + 分类
                     const info = await getCourseInfo(item.course_id, headers);
                     const signInStart = info ? info.sign_in_start_time : item.sign_in_start_time;
                     const signInEnd = info ? info.sign_in_end_time : item.sign_in_end_time;
                     const signOutStart = info ? info.sign_out_start_time : item.sign_out_start_time;
                     const signOutEnd = info ? info.sign_out_end_time : item.sign_out_end_time;
                     
-                    // 获取分类名称
-                    // 优先使用 transcript_index_id，如果没有则尝试使用 transcript_name 匹配
+                    // 获取分类名称：优先 transcript_index_id，其次 transcript_name
                     let category = null;
                     const catId = (info && info.transcript_index_id) || item.transcript_index_id;
-                    
-                    if (catId) {
-                        category = CONFIG.categories.find(c => c.id == catId);
+                    if (catId != null) {
+                        category = CONFIG.categories.find(c => String(c.id) === String(catId));
                     } else if (info && info.transcript_name) {
                         category = CONFIG.categories.find(c => c.name === info.transcript_name);
                     }
                     
                     const categoryName = category ? category.name : (info && info.transcript_name) || "未知分类";
-                    const duration = (info && info.duration) || item.duration;
+                    const duration = (info && info.duration) != null ? info.duration : (item && item.duration);
 
                     notifyItems.push({
                         title: item.course_title,
@@ -165,7 +240,7 @@ async function processItems(items, headers) {
             console.log(`【${item.category} | ${item.statusLabel}】[${item.id}] [${item.action}] ${item.title}`);
             console.log(`  签到时间: ${item.signInStart || '未设置'} - ${item.signInEnd || '未设置'}`);
             console.log(`  签退时间: ${item.signOutStart || '未设置'} - ${item.signOutEnd || '未设置'}`);
-            console.log(`  时长: ${item.duration || '未知'}`);
+            console.log(`  时长: ${item.duration != null ? item.duration : '未知'}`);
         });
 
         // 1. 处理第一个（最紧急）活动
@@ -175,6 +250,9 @@ async function processItems(items, headers) {
         
         let msgBody = `签到: ${firstItem.signInStart || '未设置'} - ${firstItem.signInEnd || '未设置'}`;
         msgBody += `\n签退: ${firstItem.signOutStart || '未设置'} - ${firstItem.signOutEnd || '未设置'}`;
+        if (firstItem.duration != null) {
+            msgBody += `\n时长: ${firstItem.duration}`;
+        }
 
         $.msg(
             $.name, 

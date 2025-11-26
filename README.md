@@ -51,6 +51,11 @@
 *   **`unpack_capture.py`**: 抓包解包工具。
 
 ## 使用说明
+### Copilot 提示词
+
+- 说明文件：`.github/copilot-instructions.md`
+- 用法：在 Copilot Chat 提问时可加上“请遵循仓库的 copilot-instructions.md”，或使用 `@workspace` 让其读取仓库上下文。
+- 建议：在需要更强上下文的脚本顶部加入短注释块，声明目标、环境（QX/本地）、约束（不泄露敏感信息、CommonJS 等）。
 
 ### 1. Quantumult X 配置
 

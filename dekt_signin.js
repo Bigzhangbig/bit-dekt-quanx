@@ -16,6 +16,9 @@ console.log("加载脚本: 北理工第二课堂签到");
 const CONFIG = {
     tokenKey: "bit_sc_token",
     headersKey: "bit_sc_headers",
+    // 新增 BoxJS 开关与运行时ID配置键
+    autoSignAllKey: "bit_sc_auto_sign_all",
+    runtimeIdsKey: "bit_sc_runtime_sign_ids",
     
     // API 接口
     listUrl: "https://qcbldekt.bit.edu.cn/api/transcript/course/signIn/list?page=1&limit=10&type=1",
@@ -50,61 +53,43 @@ async function checkAndSignIn() {
             console.log("Headers 解析失败，使用默认 Headers");
         }
     }
-    // 确保 Authorization 格式正确
     headers['Authorization'] = token.startsWith("Bearer") ? token : `Bearer ${token}`;
     headers['Content-Type'] = 'application/json;charset=utf-8';
     headers['Host'] = 'qcbldekt.bit.edu.cn';
-    // 移除可能导致问题的 Content-Length (QX 会自动处理)
     if (headers['Content-Length']) delete headers['Content-Length'];
 
-    // 检查是否有指定的 Course ID (支持单个或多个)
-    let targetIds = [];
+    // 读取 BoxJS 配置
+    const autoSignAll = String($.getdata(CONFIG.autoSignAllKey) || "false").toLowerCase() === "true";
+    const runtimeIdsStr = $.getdata(CONFIG.runtimeIdsKey) || "";
+    let targetIds = runtimeIdsStr.split(/[,，\s]+/).map(s => s.trim()).filter(s => s);
+
+    // 兼容 global 指定（如果存在，则合并）
     if (typeof global !== 'undefined') {
         if (global.DEKT_TARGET_IDS && Array.isArray(global.DEKT_TARGET_IDS)) {
-            targetIds = global.DEKT_TARGET_IDS;
+            targetIds = Array.from(new Set([...(targetIds || []), ...global.DEKT_TARGET_IDS.map(String)]));
         } else if (global.DEKT_TARGET_ID) {
-            targetIds = [global.DEKT_TARGET_ID];
-        }
-    } else {
-        const forcedId = $.getdata("DEKT_TARGET_ID");
-        if (forcedId) {
-            // 支持逗号分隔
-            targetIds = forcedId.split(/[,，]/).map(s => s.trim()).filter(s => s);
+            targetIds = Array.from(new Set([...(targetIds || []), String(global.DEKT_TARGET_ID)]));
         }
     }
 
+    if (!autoSignAll && targetIds.length === 0) {
+        console.log("ℹ️ 未开启自动签到所有，且未填写运行时ID，跳过执行。");
+        return;
+    }
+
     if (targetIds.length > 0) {
-        console.log(`🎯 [调试模式] 检测到指定课程 ID: ${targetIds.join(', ')}`);
-        
+        console.log(`🎯 运行时指定课程 ID: ${targetIds.join(', ')}`);
         for (const tId of targetIds) {
             console.log(`\n--- 处理课程 ID: ${tId} ---`);
             const info = await getCourseInfo(tId, headers);
             if (info) {
-                const now = new Date();
-                let typeStr = "";
-                let canSign = false;
-
-                if (info.sign_in_start_time) {
-                    const start = new Date(info.sign_in_start_time.replace(/-/g, '/'));
-                    const end = new Date(info.sign_in_end_time.replace(/-/g, '/'));
-                    if (now >= start && now <= end) {
-                        canSign = true;
-                        typeStr = "签到";
-                    }
-                }
-                
-                if (!canSign && info.sign_out_start_time) {
-                    const start = new Date(info.sign_out_start_time.replace(/-/g, '/'));
-                    const end = new Date(info.sign_out_end_time.replace(/-/g, '/'));
-                    if (now >= start && now <= end) {
-                        canSign = true;
-                        typeStr = "签退";
-                    }
-                }
-
+                const { canSign, typeStr } = decideSignType(info);
+                // 在时间窗口内必须通知
                 if (canSign) {
+                    $.msg($.name, `处于${typeStr}时间窗口`, `课程: ${info.course_title || tId}`);
                     await executeSign(tId, info, headers, typeStr, info.course_title || "指定课程");
                 } else {
+                    // 不在窗口，不发通知
                     console.log(`⏳ [${tId}] 当前不在签到/签退时间范围内`);
                     if (info.sign_in_start_time) console.log(`签到: ${info.sign_in_start_time} - ${info.sign_in_end_time}`);
                     if (info.sign_out_start_time) console.log(`签退: ${info.sign_out_start_time} - ${info.sign_out_end_time}`);
@@ -114,14 +99,8 @@ async function checkAndSignIn() {
         return;
     }
 
-    // 本地调试保护：如果没有指定 ID 且开启了保护，则不执行批量签到
-    if (typeof global !== 'undefined' && global.DEKT_BLOCK_LIST_MODE) {
-        console.log("🛑 [调试模式] 批量签到已禁用。请指定课程 ID 运行，或修改调试脚本以允许批量签到。");
-        return;
-    }
-
+    // 未指定ID但开启了自动签到所有
     console.log("🔍 正在获取已报名课程列表...");
-    
     try {
         const listData = await httpGet(CONFIG.listUrl, headers);
         if (!listData || listData.code !== 200) {
@@ -132,7 +111,6 @@ async function checkAndSignIn() {
 
         const courses = listData.data.items || [];
         console.log(`📋 找到 ${courses.length} 个已报名课程`);
-
         if (courses.length === 0) {
             console.log("暂无需要签到的课程");
             return;
@@ -141,50 +119,30 @@ async function checkAndSignIn() {
         for (const course of courses) {
             console.log(`\nChecking Course: [${course.course_id}] ${course.course_title}`);
             console.log(`Status: ${course.status_label} (${course.status})`);
-            
-            // status: 0 (待签到), 1 (待签退), 2 (补卡), 3 (待完成), 4 (待审核)
-            let potentialAction = false;
-            if (course.status === 0 || course.status === 1) {
-                potentialAction = true;
-            }
 
-            if (!potentialAction) {
+            // 仅处理待签到/待签退
+            if (!(course.status === 0 || course.status === 1)) {
                 console.log("非签到/签退状态，跳过");
                 continue;
             }
 
-            // 获取详细信息
             const info = await getCourseInfo(course.course_id, headers);
             if (!info) continue;
 
-            const now = new Date();
-            let canSign = false;
-            let typeStr = "";
-
-            if (course.status === 0) {
-                // 待签到
-                const start = new Date(info.sign_in_start_time.replace(/-/g, '/'));
-                const end = new Date(info.sign_in_end_time.replace(/-/g, '/'));
-                if (now >= start && now <= end) {
-                    canSign = true;
-                    typeStr = "签到";
-                } else {
-                    console.log(`⏳ 当前不在签到时间范围内 (${info.sign_in_start_time} - ${info.sign_in_end_time})`);
-                }
-            } else if (course.status === 1) {
-                // 待签退
-                const start = new Date(info.sign_out_start_time.replace(/-/g, '/'));
-                const end = new Date(info.sign_out_end_time.replace(/-/g, '/'));
-                if (now >= start && now <= end) {
-                    canSign = true;
-                    typeStr = "签退";
-                } else {
-                    console.log(`⏳ 当前不在签退时间范围内 (${info.sign_out_start_time} - ${info.sign_out_end_time})`);
-                }
-            }
-
+            const { canSign, typeStr } = decideSignType(info, course.status);
+            // 处在窗口则必须通知
             if (canSign) {
+                $.msg($.name, `处于${typeStr}时间窗口`, `课程: ${course.course_title}`);
                 await executeSign(course.course_id, info, headers, typeStr, course.course_title);
+            } else {
+                // 不在窗口，不发通知
+                if (course.status === 0 && info.sign_in_start_time) {
+                    console.log(`⏳ 当前不在签到时间范围内 (${info.sign_in_start_time} - ${info.sign_in_end_time})`);
+                } else if (course.status === 1 && info.sign_out_start_time) {
+                    console.log(`⏳ 当前不在签退时间范围内 (${info.sign_out_start_time} - ${info.sign_out_end_time})`);
+                } else {
+                    console.log("⏳ 当前不在可操作时间范围");
+                }
             }
         }
 
@@ -400,4 +358,39 @@ function Env(t, e) {
             this.isQuanX && $done(t)
         }
     }(t, e)
+}
+
+// 新增：根据课程详情与当前时间判断可签类型（默认优先签退）
+function decideSignType(info, statusHint) {
+    const now = new Date();
+    let canSign = false;
+    let typeStr = "";
+
+    // 判断在签退窗口
+    if (info.sign_out_start_time && info.sign_out_end_time) {
+        const soStart = new Date(info.sign_out_start_time.replace(/-/g, '/'));
+        const soEnd = new Date(info.sign_out_end_time.replace(/-/g, '/'));
+        if (now >= soStart && now <= soEnd) {
+            canSign = true;
+            typeStr = "签退";
+        }
+    }
+
+    // 若不在签退窗口，再判断签到窗口
+    if (!canSign && info.sign_in_start_time && info.sign_in_end_time) {
+        const siStart = new Date(info.sign_in_start_time.replace(/-/g, '/'));
+        const siEnd = new Date(info.sign_in_end_time.replace(/-/g, '/'));
+        if (now >= siStart && now <= siEnd) {
+            canSign = true;
+            typeStr = "签到";
+        }
+    }
+
+    // 如果传入了状态提示（0待签到/1待签退），并且两个窗口都可，仍旧优先签退
+    if (canSign && typeStr === "签到" && statusHint === 1) {
+        // 已在签退状态优先级，保持签退优先
+        // 如果签退窗口同时也在，则已在上方优先返回“签退”
+    }
+
+    return { canSign, typeStr };
 }
