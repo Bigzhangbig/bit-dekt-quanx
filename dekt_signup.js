@@ -167,8 +167,8 @@ async function main() {
 
             } else {
                 console.log(`❌ 报名失败: ${result.message}`);
-                // 失败则保留，下次重试
-                newList.push(item);
+                // 失败则从待报名列表移除（不再重试）
+                hasChange = true;
                 $.msg($.name, "❌ 报名失败", `课程: ${title}\nID: ${courseId}\n原因: ${result.message}`);
                 hasNotified = true;
             }
