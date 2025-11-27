@@ -164,7 +164,7 @@ async function checkCourses() {
                     for (let course of courses) {
                         // 黑名单检查
                         if (blacklist.includes(course.id.toString())) {
-                            if (isDebug) console.log(`[Debug] 课程 ${course.id} 在黑名单中，跳过`);
+                            if (isDebug) console.log(`[Debug][${cat.name}][ID:${course.id}] 在黑名单中，跳过: ${course.title || '未知名称'}`);
                             continue;
                         }
 
@@ -235,7 +235,7 @@ async function checkCourses() {
                                 const place = course.time_place ? course.time_place.replace(/[\r\n]+/g, " ") : "未知地点";
                                 const statusStr = CONFIG.statusMap[status];
                                 
-                                if (isDebug) console.log(`[Debug] 处理课程: ${title} (ID: ${course.id}, New: ${isNew})`);
+                                if (isDebug) console.log(`[Debug][${cat.name}][ID:${course.id}] 处理课程: ${title} (New: ${isNew})`);
 
                                 // 自动设置报名ID (如果是未开始的课程)
                                 if (status === 1) {
@@ -261,7 +261,7 @@ async function checkCourses() {
                                     // }
                                     
                                     if (isNew) {
-                                        notifyMsg += `【${cat.name} | ${statusStr}】🆕 ${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}${listMsg}${autoIdMsg}\n\n`;
+                                        notifyMsg += `#${course.id} 【${cat.name} | ${statusStr}】🆕 ${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}${listMsg}${autoIdMsg}\n\n`;
                                     }
                                 } else if (status === 2) {
                                     // 进行中的课程，尝试自动报名
@@ -269,7 +269,7 @@ async function checkCourses() {
                                     // 假设字段 is_sign, 1为已报名
                                     // 修改：如果是捡漏模式，或者发现了新课程(且未报名)，都直接尝试报名
                                     if (!course.is_sign && (isPickupMode || isNew)) {
-                                        console.log(`[Monitor] 尝试自动报名(新课程或捡漏): ${title}`);
+                                        console.log(`[Monitor][${cat.name}][ID:${course.id}] 尝试自动报名(新课程或捡漏): ${title}`);
                                         const signupRes = await autoSignup(course.id, token, headers);
                                         
                                         if (signupRes.success) {
@@ -281,8 +281,13 @@ async function checkCourses() {
                                         // Debug模式 或 报名成功且非新课程 时发送单独通知
                                         if (isDebug || (signupRes.success && !isNew)) {
                                             const statusIcon = signupRes.success ? "✅" : "❌";
-                                            // 标题简单，不要两行
-                                            $.msg(`${statusIcon} 自动报名${signupRes.success ? "成功" : "失败"}`, "", `${title}\nID: ${course.id}\n${signupRes.message}`);
+                                            // 构造正文，报名成功时补充时长
+                                            let body = `#${course.id} ${title}\n${signupRes.message}`;
+                                            if (signupRes.success) {
+                                                const d = getDurationIfTime(course);
+                                                if (d != null) body += `\n⏱ 时长: ${d}分钟`;
+                                            }
+                                            $.msg(`${statusIcon} 自动报名${signupRes.success ? "成功" : "失败"}`, "", body);
                                         }
                                     } else if (course.is_sign) {
                                         signupResultMsg = `\n⚠️ 已报名，跳过`;
@@ -291,13 +296,19 @@ async function checkCourses() {
                                     }
                                     
                                     if (isNew) {
-                                        notifyMsg += `【${cat.name} | ${statusStr}】🆕 ${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}${signupResultMsg}\n\n`;
+                                        // 聚合通知：仅当报名成功时追加时长
+                                        let extraDuration = "";
+                                        if (signupResultMsg.startsWith("\n✅")) {
+                                            const d2 = getDurationIfTime(course);
+                                            if (d2 != null) extraDuration = `\n⏱ 时长: ${d2}分钟`;
+                                        }
+                                        notifyMsg += `#${course.id} 【${cat.name} | ${statusStr}】🆕 ${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}${extraDuration}${signupResultMsg}\n\n`;
                                     }
                                 } else if (isNew) {
-                                    notifyMsg += `【${cat.name} | ${statusStr}】🆕 ${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}\n\n`;
+                                    notifyMsg += `#${course.id} 【${cat.name} | ${statusStr}】🆕 ${title}\n⏰ 报名时间: ${signTime}\n📍 ${place}\n\n`;
                                 }
                             } else {
-                                if (isDebug && isNew) console.log(`[Debug] 发现新课程(被筛选过滤): ${course.title} (ID: ${course.id})`);
+                                if (isDebug && isNew) console.log(`[Debug][${cat.name}][ID:${course.id}] 发现新课程(被筛选过滤): ${course.title}`);
                             }
                             
                             // 更新当前循环发现的最大ID
@@ -370,7 +381,7 @@ async function autoSignup(courseId, token, headers) {
 
     try {
         const result = await httpPost(options);
-        console.log(`[AutoSignup] 课程 ${courseId} 报名结果: ${JSON.stringify(result)}`);
+        console.log(`[AutoSignup][ID:${courseId}] 报名结果: ${JSON.stringify(result)}`);
         
         if (result.code === 200 || (result.message && result.message.includes("成功"))) {
             return { success: true, message: result.message || "报名成功" };
@@ -378,7 +389,7 @@ async function autoSignup(courseId, token, headers) {
             return { success: false, message: result.message || "未知错误" };
         }
     } catch (e) {
-        console.log(`[AutoSignup] 异常: ${e}`);
+        console.log(`[AutoSignup][ID:${courseId}] 异常: ${e}`);
         return { success: false, message: `请求异常: ${e}` };
     }
 }
@@ -415,20 +426,25 @@ async function checkSignupList(token, headers) {
             if (!isNaN(targetTime) && now >= targetTime) {
                 shouldRun = true;
             } else if (isNaN(targetTime)) {
-                console.log(`[CheckList] 时间格式错误: ${item.time}，跳过`);
+                console.log(`[CheckList][ID:${item.id}] 时间格式错误: ${item.time}，跳过`);
             }
         }
 
         if (shouldRun) {
-            console.log(`[CheckList] 课程 ${item.title}(${item.id}) 到达报名时间，开始报名...`);
+            console.log(`[CheckList][ID:${item.id}] 到达报名时间，开始报名... ${item.title}`);
             const res = await autoSignup(item.id, token, headers);
             
             if (res.success) {
-                $.msg("✅ 自动报名成功", "", `课程: ${item.title}\nID: ${item.id}\n${res.message}`);
+                let body = `#${item.id} ${item.title}\n${res.message}`;
+                try {
+                    const d = await getDurationByIdIfTime(item.id, headers);
+                    if (d != null) body += `\n⏱ 时长: ${d}分钟`;
+                } catch (_) {}
+                $.msg("✅ 自动报名成功", "", body);
                 hasChange = true; // 报名成功，移除
                 continue; // 不加入 newList
             } else {
-                console.log(`[CheckList] 报名失败: ${res.message}`);
+                console.log(`[CheckList][ID:${item.id}] 报名失败: ${res.message}`);
                 // 失败保留，继续重试
                 newList.push(item);
             }
@@ -474,6 +490,51 @@ function httpPost(options) {
             }
         });
     });
+}
+
+// 提取课程时长（分钟）：仅当完成标志为 time 时返回数字
+function getDurationIfTime(course) {
+    try {
+        const flag = course && course.completion_flag;
+        const typeFlag = course && course.transcript_index_type && course.transcript_index_type.completion_flag;
+        if (flag === 'time' || typeFlag === 'time') {
+            let d = null;
+            if (course && course.duration != null) d = parseInt(course.duration, 10);
+            if ((d == null || Number.isNaN(d)) && course && course.transcript_index_type && course.transcript_index_type.duration != null) {
+                d = parseInt(course.transcript_index_type.duration, 10);
+            }
+            if ((d == null || Number.isNaN(d)) && course && typeof course.completion_flag_text === 'string') {
+                const m = course.completion_flag_text.match(/(\d{1,3})\s*分钟/);
+                if (m) d = parseInt(m[1], 10);
+            }
+            return Number.isNaN(d) ? null : d;
+        }
+    } catch (e) {}
+    return null;
+}
+
+// 通过 REST 详情按需获取课程时长（仅当完成标志为 time 时返回数字）
+async function getDurationByIdIfTime(courseId, headers) {
+    try {
+        const url = `https://qcbldekt.bit.edu.cn/api/course/info/${courseId}`;
+        const resp = await httpGet(url, headers);
+        const data = resp && (resp.data || resp.json && resp.json.data) || null;
+        if (!data) return null;
+        const flag = data.completion_flag || (data.transcript_index_type && data.transcript_index_type.completion_flag);
+        if (flag !== 'time') return null;
+        let d = null;
+        if (data.duration != null) d = parseInt(data.duration, 10);
+        if ((d == null || Number.isNaN(d)) && data.transcript_index_type && data.transcript_index_type.duration != null) {
+            d = parseInt(data.transcript_index_type.duration, 10);
+        }
+        if ((d == null || Number.isNaN(d)) && typeof data.completion_flag_text === 'string') {
+            const m = data.completion_flag_text.match(/(\d{1,3})\s*分钟/);
+            if (m) d = parseInt(m[1], 10);
+        }
+        return Number.isNaN(d) ? null : d;
+    } catch (e) {
+        return null;
+    }
 }
 
 // --- Env Polyfill ---
