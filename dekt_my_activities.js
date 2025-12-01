@@ -117,6 +117,21 @@ async function getMyCourseList(headers) {
             CACHE.myCourseList = data.data.items;
             CACHE.myCourseListFetchedAt = now;
             console.log(`[myCourseList] 使用接口: ${usedUrl}，返回 ${CACHE.myCourseList.length} 条`);
+            // 日志打印课程详情
+            CACHE.myCourseList.forEach(item => {
+                const category = item.transcript_index ? item.transcript_index.transcript_name : (item.transcript_name || '未知');
+                const status = item.status_label || item.status;
+                const address = item.sign_in_address && Array.isArray(item.sign_in_address) ? item.sign_in_address.map(a => a.address).join(';') : (item.time_place || '未知');
+                let log = `课程ID: ${item.id}, 类别: ${category}, 名称: ${item.title}, 状态: ${status}, 地址: ${address}`;
+                if (item.completion_flag_text) {
+                    log += `, completion_flag_text: ${item.completion_flag_text}`;
+                }
+                if (item.completion_flag === 'time') {
+                    const duration = item.duration || (item.transcript_index_type && item.transcript_index_type.duration) || (item.completion_flag_text ? item.completion_flag_text : '未知');
+                    log += `, 时长: ${duration}, 签到: ${item.sign_in_start_time || '无'}-${item.sign_in_end_time || '无'}, 签退: ${item.sign_out_start_time || '无'}-${item.sign_out_end_time || '无'}`;
+                }
+                console.log(log);
+            });
             return CACHE.myCourseList;
         }
     } catch (e) {
