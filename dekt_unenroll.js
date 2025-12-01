@@ -57,6 +57,14 @@ async function main() {
 function getFirstPref(keys) {
   for (const k of keys) {
     const v = $.getdata(k);
+    console.log(`[pref] key=${k} value=${v ? '(set)' : '(empty)'}`);
+    if (v) return v.trim();
+  }
+  // 兼容额外可能键名
+  const extraKeys = ["course_id", "bit_sc_course_id", "DEKT_COURSEID"]; 
+  for (const k of extraKeys) {
+    const v = $.getdata(k);
+    console.log(`[pref] fallback key=${k} value=${v ? '(set)' : '(empty)'}`);
     if (v) return v.trim();
   }
   return "";
