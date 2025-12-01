@@ -101,13 +101,27 @@ def find_capture_files(root_dir, keyword="qcbldekt.bit.edu.cn"):
     return matched_files
 
 if __name__ == "__main__":
-    root_dir = "2025-11-27-223528"
-    keyword = "qcbldekt.bit.edu.cn"
+    # 用法:
+    #   python unpack_capture.py <root_dir> [keyword] [path_contains]
+    # 例如:
+    #   python unpack_capture.py 20251201_160758 qcbldekt.bit.edu.cn /api/course/cancelApply
+    root_dir = sys.argv[1] if len(sys.argv) > 1 else "2025-11-27-223528"
+    keyword = sys.argv[2] if len(sys.argv) > 2 else "qcbldekt.bit.edu.cn"
+    path_contains = sys.argv[3] if len(sys.argv) > 3 else None
+
     matched_files = find_capture_files(root_dir, keyword)
     for file_path in matched_files:
-        if file_path.endswith("basic"):
-            dir_path = os.path.dirname(file_path)
-            response_body_path = os.path.join(dir_path, "response_body")
-            if os.path.exists(response_body_path):
-                print(f"解包: {response_body_path}")
-                process_file(response_body_path)
+        if not file_path.endswith("basic"):
+            continue
+        try:
+            with open(file_path, 'rb') as f:
+                basic = f.read().decode('utf-8', errors='ignore')
+        except Exception:
+            basic = ""
+        if path_contains and path_contains not in basic:
+            continue
+        dir_path = os.path.dirname(file_path)
+        response_body_path = os.path.join(dir_path, "response_body")
+        if os.path.exists(response_body_path):
+            print(f"解包: {response_body_path}")
+            process_file(response_body_path)

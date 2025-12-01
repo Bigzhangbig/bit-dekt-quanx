@@ -15,6 +15,7 @@ const $ = new Env("北理工第二课堂-获取Token");
 const CONFIG = {
     tokenKey: "bit_sc_token",
     headersKey: "bit_sc_headers",
+    userIdKey: "bit_sc_user_id",
     debugKey: "bit_sc_debug",
     githubTokenKey: "bit_sc_github_token",
     gistIdKey: "bit_sc_gist_id",
@@ -48,6 +49,7 @@ async function getCookie() {
         // 必须同时存在 Authorization 和 Referer 才认为是有效请求
         if (auth && referer) {
             const oldToken = $.getdata(CONFIG.tokenKey);
+            const parsedUserId = deriveUserId(auth);
             
             if (oldToken !== auth) {
                 // 检查 Gist 上的 Token
@@ -66,14 +68,16 @@ async function getCookie() {
                     // Token 与 Gist 一致，仅更新本地
                     $.setdata(auth, CONFIG.tokenKey);
                     $.setdata(headersToSave, CONFIG.headersKey);
+                    if (parsedUserId) $.setdata(parsedUserId, CONFIG.userIdKey);
                     console.log(`[${$.name}] Token与Gist一致，更新本地缓存，不发送通知`);
                 } else {
                     // Token 不一致，更新本地和 Gist
                     $.setdata(auth, CONFIG.tokenKey);
                     $.setdata(headersToSave, CONFIG.headersKey);
+                    if (parsedUserId) $.setdata(parsedUserId, CONFIG.userIdKey);
                     
                     // 同步到 Gist
-                    await updateGist(auth, headersToSave);
+                    await updateGist(auth, headersToSave, parsedUserId);
 
                     $.msg($.name, "获取Token成功", "Token已更新，请去运行监控脚本测试");
                     console.log(`[${$.name}] Token 更新成功`);
@@ -142,7 +146,7 @@ async function getGist() {
     });
 }
 
-async function updateGist(token, headers) {
+async function updateGist(token, headers, userId) {
     const githubToken = $.getdata(CONFIG.githubTokenKey);
     const gistId = $.getdata(CONFIG.gistIdKey);
     const filename = $.getdata(CONFIG.gistFileNameKey) || "bit_cookies.json";
@@ -154,6 +158,7 @@ async function updateGist(token, headers) {
 
     const content = JSON.stringify({
         token: token,
+        user_id: userId || null,
         headers: JSON.parse(headers),
         updated_at: new Date().toISOString()
     }, null, 2);
@@ -204,6 +209,17 @@ async function updateGist(token, headers) {
             resolve();
         }
     });
+}
+
+function deriveUserId(authorizationHeader) {
+    try {
+        if (!authorizationHeader) return "";
+        // 支持 "Bearer 611156|xxxx" 或 "611156|xxxx"
+        let raw = String(authorizationHeader).trim();
+        if (raw.toLowerCase().startsWith("bearer ")) raw = raw.slice(7).trim();
+        const first = raw.split("|")[0].trim();
+        return /^\d+$/.test(first) ? first : "";
+    } catch (_) { return ""; }
 }
 
 // --- Env Polyfill ---

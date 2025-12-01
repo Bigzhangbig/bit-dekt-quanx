@@ -11,6 +11,7 @@
       "keys": [
         "bit_sc_token",
         "bit_sc_headers",
+        "bit_sc_user_id",
         "bit_sc_cache",
         "bit_sc_signup_course_id",
         "bit_sc_blacklist",
@@ -36,7 +37,15 @@
           "name": "报名课程ID",
           "val": "",
           "type": "text",
-          "desc": "输入要报名的课程ID（数字），运行报名脚本时使用"
+          "desc": "输入课程ID（数字），用于报名/取消报名脚本"
+        },
+        {
+          "id": "bit_sc_user_id",
+          "name": "用户ID (自动获取)",
+          "val": "",
+          "type": "text",
+          "desc": "无需手动填写，从 Token 中解析获得",
+          "disabled": true
         },
         {
           "id": "bit_sc_blacklist",
