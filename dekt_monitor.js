@@ -9,7 +9,7 @@
 
 const $ = new Env("北理工第二课堂");
 
-console.log("加载脚本: 北理工第二课堂监控 (v20251122)");
+console.log("加载脚本: 北理工第二课堂监控 (v20251202)");
 
 // 配置项
 const CONFIG = {
@@ -349,8 +349,11 @@ async function checkCourses() {
         $.msg("🆕 发现新课程", "", notifyMsg, { "open-url": openUrl });
         $.setdata(JSON.stringify(cache), CONFIG.cacheKey);
     } else {
-        if (isDebug || isNotifyNoUpdate) {
+        // Debug 模式下无新课程不发送通知，仅打印日志
+        if (isNotifyNoUpdate) {
             $.msg("🔍 监控完成", "", `共获取课程: ${totalFetchedCount}\n未开始课程: ${unstartedCount}\n暂无新课程`, { "open-url": openUrl });
+        }
+        if (isDebug) {
             console.log(`[Debug] 暂无新课程更新`);
         } else {
             console.log("暂无新课程更新");

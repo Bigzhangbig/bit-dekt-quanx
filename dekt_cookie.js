@@ -79,7 +79,7 @@ async function getCookie() {
                     // 同步到 Gist
                     await updateGist(auth, headersToSave, parsedUserId);
 
-                    $.msg($.name, "获取Token成功", "Token已更新，请去运行监控脚本测试");
+                    $.msg($.name, "获取Token成功", "Token已更新，请去运行监控脚本测试", { 'isSilent': true });
                     console.log(`[${$.name}] Token 更新成功`);
                 }
             } else {
@@ -156,11 +156,24 @@ async function updateGist(token, headers, userId) {
         return;
     }
 
+    // 读取BoxJS相关配置项
+    const boxjsConfig = {
+        blacklist: $.getdata("bit_sc_blacklist"),
+        signup_list: $.getdata("bit_sc_signup_list"),
+        pickup_mode: $.getdata("bit_sc_pickup_mode"),
+        filter_college: $.getdata("bit_sc_filter_college"),
+        filter_grade: $.getdata("bit_sc_filter_grade"),
+        filter_type: $.getdata("bit_sc_filter_type"),
+        auto_sign_all: $.getdata("bit_sc_auto_sign_all"),
+        runtime_sign_ids: $.getdata("bit_sc_runtime_sign_ids")
+    };
+
     const content = JSON.stringify({
         token: token,
         user_id: userId || null,
         headers: JSON.parse(headers),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        boxjs: boxjsConfig
     }, null, 2);
 
     const url = `https://api.github.com/gists/${gistId}`;

@@ -14,6 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 const Env = require('./local_env');
+const { spawnSync } = require('child_process');
 
 // 将本地 Env 注入到全局
 global.Env = Env;
@@ -79,6 +80,14 @@ const cleanScriptContent = scriptContent.replace(/function Env\s*\(.*?\)\s*\{[\s
 console.log('=== Starting Local Debug: dekt_unenroll.js ===');
 
 try {
+  // 先同步 .env（从 Gist 拉取最新 Token/Headers）
+  try {
+    const syncPath = path.join(__dirname, 'local_sync_gist.js');
+    spawnSync(process.execPath, [syncPath], { stdio: 'inherit' });
+  } catch (e) {
+    console.log('[LocalSync] 同步环境失败（忽略继续）:', e.message || e);
+  }
+
   eval(cleanScriptContent);
 } catch (e) {
   console.error('Runtime Error:', e);

@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const QRCode = require('qrcode');
 const Env = require('./local_env');
+const { spawnSync } = require('child_process');
 
 global.Env = Env;
 const $ = new Env("获取二维码");
@@ -37,6 +38,13 @@ if (!fs.existsSync(CONFIG.saveDir)) {
 
 (async () => {
     console.log("=== 开始获取活动二维码 ===");
+    // 先同步 .env（从 Gist 拉取最新 Token/Headers）
+    try {
+        const syncPath = path.join(__dirname, 'local_sync_gist.js');
+        spawnSync(process.execPath, [syncPath], { stdio: 'inherit' });
+    } catch (e) {
+        console.log('[LocalSync] 同步环境失败（忽略继续）:', e.message || e);
+    }
     
     const token = $.getdata(CONFIG.tokenKey);
     if (!token) {

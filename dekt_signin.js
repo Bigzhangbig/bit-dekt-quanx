@@ -8,37 +8,136 @@
  * 0 8-22/1 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/dekt_signin.js, tag=第二课堂签到, enabled=false
  */
 
+
+// ====== 配置项 ======
 const $ = new Env("北理工第二课堂签到");
-
-console.log("加载脚本: 北理工第二课堂签到");
-
-// 配置项
 const CONFIG = {
     tokenKey: "bit_sc_token",
     headersKey: "bit_sc_headers",
-    // 新增 BoxJS 开关与运行时ID配置键
     autoSignAllKey: "bit_sc_auto_sign_all",
     runtimeIdsKey: "bit_sc_runtime_sign_ids",
-    
-    // API 接口
     listUrl: "https://qcbldekt.bit.edu.cn/api/transcript/course/signIn/list?page=1&limit=10&type=1",
     infoUrl: "https://qcbldekt.bit.edu.cn/api/transcript/checkIn/info",
     signInUrl: "https://qcbldekt.bit.edu.cn/api/transcript/signIn",
-    // 新增：课程详情（含时长）REST接口
     courseInfoUrlRest: "https://qcbldekt.bit.edu.cn/api/course/info/",
-    // 新增：我的课程列表（兜底时长来源）
     myCourseListUrl: "https://qcbldekt.bit.edu.cn/api/course/list/my?page=1&limit=200"
 };
 
-(async () => {
+// ====== 主入口 ======
+main().finally(() => $.done());
+
+async function main() {
     try {
-        await checkAndSignIn();
+        const { token, headers, autoSignAll, targetIds } = getEnvConfig();
+        if (!token) {
+            $.msg($.name, "❌ 未找到 Token", "请先运行获取 Cookie 脚本或在 BoxJS 中填写");
+            return;
+        }
+        const courses = await getCourseList(headers);
+        if (Array.isArray(courses) && courses.length > 0) {
+            await handleCourseList(courses, headers, autoSignAll);
+        } else if (targetIds.length > 0) {
+            await handleTargetIds(targetIds, headers);
+        }
     } catch (e) {
         console.log(`❌ 脚本运行异常: ${e}`);
-    } finally {
-        $.done();
     }
-})();
+}
+
+// ====== 环境与配置读取 ======
+function getEnvConfig() {
+    const token = $.getdata(CONFIG.tokenKey);
+    const savedHeadersStr = $.getdata(CONFIG.headersKey);
+    let headers = {};
+    if (savedHeadersStr) {
+        try { headers = JSON.parse(savedHeadersStr); } catch {}
+    }
+    headers['Authorization'] = token && token.startsWith("Bearer") ? token : `Bearer ${token}`;
+    headers['Content-Type'] = 'application/json;charset=utf-8';
+    headers['Host'] = 'qcbldekt.bit.edu.cn';
+    if (headers['Content-Length']) delete headers['Content-Length'];
+    const autoSignAll = String($.getdata(CONFIG.autoSignAllKey) || "false").toLowerCase() === "true";
+    const runtimeIdsStr = $.getdata(CONFIG.runtimeIdsKey) || "";
+    let targetIds = runtimeIdsStr.split(/[,，\s]+/).map(s => s.trim()).filter(s => s);
+    if (typeof global !== 'undefined') {
+        if (global.DEKT_TARGET_IDS && Array.isArray(global.DEKT_TARGET_IDS)) {
+            targetIds = Array.from(new Set([...(targetIds || []), ...global.DEKT_TARGET_IDS.map(String)]));
+        } else if (global.DEKT_TARGET_ID) {
+            targetIds = Array.from(new Set([...(targetIds || []), String(global.DEKT_TARGET_ID)]));
+        }
+    }
+    return { token, headers, autoSignAll, targetIds };
+}
+
+// ====== 课程列表获取 ======
+async function getCourseList(headers) {
+    try {
+        const listData = await httpGet(CONFIG.listUrl, headers);
+        if (listData && listData.code === 200) {
+            return listData.data.items || [];
+        }
+    } catch {}
+    return [];
+}
+
+// ====== 处理课程列表 ======
+async function handleCourseList(courses, headers, autoSignAll) {
+    for (const course of courses) {
+        const info = await getCourseInfo(course.course_id, headers);
+        if (!info) continue;
+        const meta = await getCourseMeta(course.course_id, headers);
+        if (meta && meta.completionType === 'time') {
+            showCourseLog(course.course_id, course.course_title || info.course_title || String(course.course_id), info, meta);
+            if (autoSignAll) {
+                await trySign(course.course_id, info, headers, '签到', course.course_title);
+                await trySign(course.course_id, info, headers, '签退', course.course_title);
+            }
+        }
+    }
+}
+
+// ====== 处理指定ID ======
+async function handleTargetIds(targetIds, headers) {
+    for (const tId of targetIds) {
+        const info = await getCourseInfo(tId, headers);
+        if (!info) continue;
+        const meta = await getCourseMeta(tId, headers);
+        if (meta && meta.completionType === 'time') {
+            showCourseLog(tId, info.course_title || String(tId), info, meta);
+            await trySign(tId, info, headers, '签到', info.course_title);
+            await trySign(tId, info, headers, '签退', info.course_title);
+        }
+    }
+}
+
+// ====== 日志输出 ======
+function showCourseLog(courseId, title, info, meta) {
+    const siWin = isInWindow(info, 'signIn');
+    const soWin = isInWindow(info, 'signOut');
+    console.log(`===== 课程 ${courseId} | ${title} =====`);
+    console.log(`时长: ${meta.duration != null ? meta.duration : '未知'}`);
+    console.log(`签到窗口: ${siWin ? '是' : '否'}${info.sign_in_start_time ? ` (${info.sign_in_start_time} - ${info.sign_in_end_time})` : ''}`);
+    console.log(`签退窗口: ${soWin ? '是' : '否'}${info.sign_out_start_time ? ` (${info.sign_out_start_time} - ${info.sign_out_end_time})` : ''}`);
+    console.log(`----------------------------------------------`);
+}
+
+// ====== 签到/签退尝试 ======
+async function trySign(courseId, info, headers, typeStr, courseTitle) {
+    const inSignIn = isInWindow(info, 'signIn');
+    const inSignOut = isInWindow(info, 'signOut');
+    if (inSignIn && inSignOut) {
+        // 同时处于签到和签退窗口，优先签到
+        $.msg($.name, `处于签到和签退窗口，默认签到`, `${courseTitle}`);
+        await executeSign(courseId, info, headers, '签到', courseTitle);
+    } else if (typeStr === '签到' && inSignIn) {
+        $.msg($.name, `处于签到窗口`, `${courseTitle}`);
+        await executeSign(courseId, info, headers, '签到', courseTitle);
+    } else if (typeStr === '签退' && inSignOut) {
+        $.msg($.name, `处于签退窗口`, `${courseTitle}`);
+        await executeSign(courseId, info, headers, '签退', courseTitle);
+    }
+}
+// ...existing code...
 
 async function checkAndSignIn() {
     const token = $.getdata(CONFIG.tokenKey);
@@ -98,30 +197,26 @@ async function checkAndSignIn() {
             const title = course.course_title || info.course_title || String(course.course_id);
             const siWin = isInWindow(info, 'signIn');
             const soWin = isInWindow(info, 'signOut');
-            // 日志：非 time 类型仅提示跳过；time 类型输出时长与窗口
-            console.log(`===== 课程 ${course.course_id} | ${title} =====`);
+                // 只显示 time 类型课程
                 if (meta && meta.completionType === 'time') {
+                    console.log(`===== 课程 ${course.course_id} | ${title} =====`);
                     const duration = meta.duration;
                     console.log(`时长: ${duration != null ? duration : '未知'}`);
                     console.log(`签到窗口: ${siWin ? '是' : '否'}${info.sign_in_start_time ? ` (${info.sign_in_start_time} - ${info.sign_in_end_time})` : ''}`);
                     console.log(`签退窗口: ${soWin ? '是' : '否'}${info.sign_out_start_time ? ` (${info.sign_out_start_time} - ${info.sign_out_end_time})` : ''}`);
-                } else {
-                    // console.log(`时长: 未知（非time类型，跳过执行）`);
-                    // console.log(`签到窗口: 否`);
-                    // console.log(`签退窗口: 否`);
+                    console.log(`----------------------------------------------`);
+                    // 仅在开启 autoSignAll 且为 time 类型时执行
+                    if (autoSignAll) {
+                        if (siWin) {
+                            $.msg($.name, `处于签到窗口`, `${title}`);
+                            await executeSign(course.course_id, info, headers, '签到', title);
+                        }
+                        if (soWin) {
+                            $.msg($.name, `处于签退窗口`, `${title}`);
+                            await executeSign(course.course_id, info, headers, '签退', title);
+                        }
+                    }
                 }
-            console.log(`----------------------------------------------`);
-            // 仅在开启 autoSignAll 且为 time 类型时执行
-            if (autoSignAll && meta && meta.completionType === 'time') {
-                if (siWin) {
-                    $.msg($.name, `处于签到窗口`, `${title}`);
-                    await executeSign(course.course_id, info, headers, '签到', title);
-                }
-                if (soWin) {
-                    $.msg($.name, `处于签退窗口`, `${title}`);
-                    await executeSign(course.course_id, info, headers, '签退', title);
-                }
-            }
         }
     } else if (targetIds.length > 0) {
         // 仅对指定 ID 尝试签到
@@ -132,29 +227,23 @@ async function checkAndSignIn() {
             const title = info.course_title || String(tId);
             const soWin = isInWindow(info, 'signOut');
             const siWin = isInWindow(info, 'signIn');
-            // 日志分割线 + 先签到后签退
-            console.log(`===== 课程 ${tId} | ${title} =====`);
+                // 只显示 time 类型课程
                 if (meta && meta.completionType === 'time') {
+                    console.log(`===== 课程 ${tId} | ${title} =====`);
                     const duration = meta.duration;
                     console.log(`时长: ${duration != null ? duration : '未知'}`);
                     console.log(`签到窗口: ${siWin ? '是' : '否'}${info.sign_in_start_time ? ` (${info.sign_in_start_time} - ${info.sign_in_end_time})` : ''}`);
                     console.log(`签退窗口: ${soWin ? '是' : '否'}${info.sign_out_start_time ? ` (${info.sign_out_start_time} - ${info.sign_out_end_time})` : ''}`);
-                } else {
-                    // console.log(`时长: 未知（非time类型，跳过执行）`);
-                    // console.log(`签到窗口: 否`);
-                    // console.log(`签退窗口: 否`);
+                    console.log(`----------------------------------------------`);
+                    if (siWin) {
+                        $.msg($.name, `处于签到时间窗口`, `课程: ${title}`);
+                        await executeSign(tId, info, headers, '签到', title);
+                    }
+                    if (soWin) {
+                        $.msg($.name, `处于签退时间窗口`, `课程: ${title}`);
+                        await executeSign(tId, info, headers, '签退', title);
+                    }
                 }
-            console.log(`----------------------------------------------`);
-            if (meta && meta.completionType === 'time') {
-                if (siWin) {
-                    $.msg($.name, `处于签到时间窗口`, `课程: ${title}`);
-                    await executeSign(tId, info, headers, '签到', title);
-                }
-                if (soWin) {
-                    $.msg($.name, `处于签退时间窗口`, `课程: ${title}`);
-                    await executeSign(tId, info, headers, '签退', title);
-                }
-            }
         }
     }
 }
@@ -222,28 +311,15 @@ async function getCourseInfo(courseId, headers) {
                     // 存在明确 duration 时倾向认为 time
                     completionType = 'time';
                 }
-                return {
-                    duration: d.duration != null ? d.duration : await getCourseDuration(courseId, headers),
-                    completionType: completionType || 'other'
-                };
+                    return {
+                        duration: d.duration != null ? d.duration : null,
+                        completionType: completionType || 'other'
+                    };
             }
         } catch (e) {
             // 忽略错误
         }
-        // 兜底：从我的课程列表判断（若有 duration 则认为 time）
-        try {
-            const list = await httpGet(CONFIG.myCourseListUrl, headers);
-            if (list && list.code === 200 && list.data && Array.isArray(list.data.items)) {
-                const found = list.data.items.find(x => String(x.course_id || x.id) === String(courseId));
-                if (found) {
-                    return {
-                        duration: found.duration != null ? found.duration : null,
-                        completionType: found.duration != null ? 'time' : 'other'
-                    };
-                }
-            }
-        } catch (e) {}
-        return { duration: null, completionType: 'other' };
+            return { duration: null, completionType: 'other' };
     }
 
 

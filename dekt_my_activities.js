@@ -7,18 +7,16 @@
  * 0 8-22 * * * https://github.com/Bigzhangbig/bit-dekt-quanx/raw/refs/heads/main/dekt_my_activities.js, tag=第二课堂我的活动, enabled=true
  */
 
-const $ = new Env("北理工第二课堂-我的活动");
+const EnvCtor = (typeof global !== 'undefined' && global.Env) ? global.Env : Env;
+const $ = new EnvCtor("北理工第二课堂-我的活动");
 console.log("脚本开始运行");
 
 const CONFIG = {
     tokenKey: "bit_sc_token",
+    // 调试模式开关（来自 BoxJS：bit_sc_debug）
+    debugKey: "bit_sc_debug",
     listUrl: "https://qcbldekt.bit.edu.cn/api/transcript/course/signIn/list?page=1&limit=20&type=1",
-    // 旧的 infoUrl 仅提供签到/签退时间
-    // infoUrl: "https://qcbldekt.bit.edu.cn/api/transcript/checkIn/info",
-    // 新增：按职责分离
-    // 已确认 REST 详情提供签到/签退时间，移除单独的 checkInInfo 请求
-    checkInInfoUrl: "https://qcbldekt.bit.edu.cn/api/transcript/checkIn/info",
-    // 使用新的 REST 风格课程详情接口
+    // 课程详情 REST 接口（含时长/签到签退时间等）
     courseInfoUrlRest: "https://qcbldekt.bit.edu.cn/api/course/info/",
     // 我的课程列表：使用新路径（旧路径保留在代码兜底处理中）
     myCourseListUrl: "https://qcbldekt.bit.edu.cn/api/course/list/my?page=1&limit=200",
@@ -52,8 +50,9 @@ const CACHE = {
 
 async function checkActivities() {
     const token = $.getdata(CONFIG.tokenKey);
+    const isDebug = isDebugMode();
     if (!token) {
-        $.msg($.name, "❌ 未找到 Token", "请先在 BoxJS 或本地配置 bit_sc_token");
+        notify($.name, "❌ 未找到 Token", "请先在 BoxJS 或本地配置 bit_sc_token");
         return;
     }
 
@@ -65,22 +64,29 @@ async function checkActivities() {
     };
 
     try {
+        if (isDebug) {
+            console.log("[DEBUG] 调试模式已开启：将抑制通知，仅输出日志。");
+        }
+
         // 先拉取一次“我的课程列表”，以确保详细日志能稳定打印（函数内带缓存）
         try {
-            await getMyCourseList(headers);
+            const list = await getMyCourseList(headers);
+            if (Array.isArray(list)) {
+                console.log(`[myCourseList] 预拉取完成，条数: ${list.length}`);
+            }
         } catch (e) {
             console.log("预拉取我的课程列表用于日志打印失败: " + e);
         }
 
         const res = await httpGet(CONFIG.listUrl, headers);
         if (res.code === 200 && res.data && res.data.items) {
-            await processItems(res.data.items, headers);
+            return await processItems(res.data.items, headers);
         } else {
             console.log("获取列表失败或列表为空: " + JSON.stringify(res));
         }
     } catch (error) {
         console.log("请求失败: " + error);
-        $.msg($.name, "请求失败", error);
+        notify($.name, "请求失败", error);
     }
 }
 
@@ -120,26 +126,39 @@ async function getMyCourseList(headers) {
             usedUrl = "https://qcbldekt.bit.edu.cn/api/transcript/course/list/my?page=1&limit=200";
             data = await httpGet(usedUrl, headers);
         }
-        if (data && data.code === 200 && data.data && Array.isArray(data.data.items)) {
-            CACHE.myCourseList = data.data.items;
+        if (data && data.code === 200) {
+            let items = [];
+            // 兼容多种返回结构
+            if (data.data) {
+                if (Array.isArray(data.data.items)) items = data.data.items;
+                else if (Array.isArray(data.data.list)) items = data.data.list;
+                else if (Array.isArray(data.data)) items = data.data;
+            } else {
+                if (Array.isArray(data.items)) items = data.items;
+                else if (Array.isArray(data.list)) items = data.list;
+            }
+            CACHE.myCourseList = items;
             CACHE.myCourseListFetchedAt = now;
-            console.log(`[myCourseList] 使用接口: ${usedUrl}，返回 ${CACHE.myCourseList.length} 条`);
-            // 日志打印课程详情
-            CACHE.myCourseList.forEach(item => {
+            console.log(`[myCourseList] 使用接口: ${usedUrl}，返回 ${items.length} 条`);
+            // 日志打印课程详情（即使为0条也打印接口与条数）
+            items.forEach(item => {
                 const category = item.transcript_index ? item.transcript_index.transcript_name : (item.transcript_name || '未知');
                 const status = item.status_label || item.status;
                 const address = item.sign_in_address && Array.isArray(item.sign_in_address) ? item.sign_in_address.map(a => a.address).join(';') : (item.time_place || '未知');
-                let log = `课程ID: ${item.id}, 类别: ${category}, 名称: ${item.title}, 状态: ${status}, 地址: ${address}`;
+                let log = `课程ID: ${item.id || item.course_id}, 类别: ${category}, 名称: ${item.title || item.course_title}, 状态: ${status}, 地址: ${address}`;
                 if (item.completion_flag_text) {
                     log += `, completion_flag_text: ${item.completion_flag_text}`;
                 }
-                if (item.completion_flag === 'time') {
+                // 判断 time 类型的若干可见字段
+                if ((item.completion_flag && String(item.completion_flag).toLowerCase() === 'time') || item.duration != null || (item.transcript_index_type && item.transcript_index_type.duration != null)) {
                     const duration = item.duration || (item.transcript_index_type && item.transcript_index_type.duration) || (item.completion_flag_text ? item.completion_flag_text : '未知');
                     log += `, 时长: ${duration}, 签到: ${item.sign_in_start_time || '无'}-${item.sign_in_end_time || '无'}, 签退: ${item.sign_out_start_time || '无'}-${item.sign_out_end_time || '无'}`;
                 }
                 console.log(log);
             });
             return CACHE.myCourseList;
+        } else {
+            console.log(`[myCourseList] 接口返回非200或结构异常: ${JSON.stringify(data)}`);
         }
     } catch (e) {
         console.log(`获取我的课程列表失败: ${e}`);
@@ -153,34 +172,23 @@ async function getMyCourseList(headers) {
 // 3) 若仍缺失 duration，再从 course/list/my 兜底补齐
 async function getCourseInfo(courseId, headers) {
     const result = { _source: {} };
-    let haveDuration = false;
 
-    // 1) 获取课程详情（REST），包含签到/签退时间 + 时长
-    if (!haveDuration) {
-        try {
-            const rest = await httpGet(`${CONFIG.courseInfoUrlRest}${courseId}`, headers);
-            if (rest && rest.code === 200 && rest.data) {
-                const { sign_in_start_time, sign_in_end_time, sign_out_start_time, sign_out_end_time } = result;
-                Object.assign(result, rest.data);
-                // 保留 legacy 已获取的签到时间段
-                if (sign_in_start_time) result.sign_in_start_time = sign_in_start_time;
-                if (sign_in_end_time) result.sign_in_end_time = sign_in_end_time;
-                if (sign_out_start_time) result.sign_out_start_time = sign_out_start_time;
-                if (sign_out_end_time) result.sign_out_end_time = sign_out_end_time;
-                if (!result._source.courseInfo) result._source.courseInfo = 'rest'; else result._source.courseInfo += '+rest';
-                if (rest.data.duration != null && !result._source.duration) {
-                    result._source.duration = 'rest.duration';
-                    haveDuration = true;
-                }
-                console.log(`[courseInfo] 使用 REST 接口获取成功(补齐): id=${courseId}`);
-            } else {
-                console.log(`[courseInfo] REST 接口返回异常: id=${courseId}`);
+    // 1) 优先获取 REST 课程详情（含签到/签退/时长）
+    try {
+        const rest = await httpGet(`${CONFIG.courseInfoUrlRest}${courseId}`, headers);
+        if (rest && rest.code === 200 && rest.data) {
+            Object.assign(result, rest.data);
+            result._source.courseInfo = 'rest';
+            if (result.duration != null) {
+                result._source.duration = 'rest.duration';
             }
-        } catch (e) {
-            console.log(`[courseInfo] REST 接口请求异常: ${e}`);
+            console.log(`[courseInfo] 使用 REST 接口获取成功: id=${courseId}`);
+        } else {
+            console.log(`[courseInfo] REST 接口返回异常: id=${courseId}`);
         }
+    } catch (e) {
+        console.log(`[courseInfo] REST 接口请求异常: ${e}`);
     }
-
 
     // 2) 兜底：我的课程列表（仅在前面无 duration 时）
     if (result.duration == null) {
@@ -353,9 +361,9 @@ async function processItems(items, headers) {
             msgBody += `\n时长: ${firstItem.duration}`;
         }
 
-        $.msg(
-            $.name, 
-            `⚠️ ${firstItem.action}提醒: [${firstItem.id}] ${firstItem.title}`, 
+        notify(
+            $.name,
+            `⚠️ ${firstItem.action}提醒: [${firstItem.id}] ${firstItem.title}`,
             msgBody,
             {"open-url": quickChartUrl}
         );
@@ -366,7 +374,7 @@ async function processItems(items, headers) {
             const restItems = notifyItems.slice(1);
             const summary = restItems.map(item => `[${item.id}] [${item.action}] ${item.title}`).join('\n');
             
-            $.msg(
+            notify(
                 $.name,
                 `还有 ${restItems.length} 个活动待处理`,
                 summary + "\n点击跳转小程序",
@@ -377,7 +385,33 @@ async function processItems(items, headers) {
     } else {
         console.log("没有需要签到/签退的活动");
     }
+
+    return notifyItems;
 }
 
 // Env Polyfill
 function Env(t, e) { class s { constructor(t) { this.env = t } } return new class { constructor(t) { this.name = t, this.logs = [], this.isSurge = !1, this.isQuanX = "undefined" != typeof $task, this.isLoon = !1 } getdata(t) { let e = this.getval(t); if (/^@/.test(t)) { const [, s, i] = /^@(.*?)\.(.*?)$/.exec(t), r = s ? this.getval(s) : ""; if (r) try { const t = JSON.parse(r); e = t ? this.getval(i, t) : null } catch (t) { e = "" } } return e } setdata(t, e) { let s = !1; if (/^@/.test(e)) { const [, i, r] = /^@(.*?)\.(.*?)$/.exec(e), o = this.getval(i), h = i ? "null" === o ? null : o || "{}" : "{}"; try { const e = JSON.parse(h); this.setval(r, t, e), s = !0, this.setval(i, JSON.stringify(e)) } catch (e) { const o = {}; this.setval(r, t, o), s = !0, this.setval(i, JSON.stringify(o)) } } else s = this.setval(t, e); return s } getval(t) { return this.isQuanX ? $prefs.valueForKey(t) : "" } setval(t, e) { return this.isQuanX ? $prefs.setValueForKey(t, e) : "" } msg(e = t, s = "", i = "", r) { this.isQuanX && $notify(e, s, i, r) } get(t, e = (() => { })) { this.isQuanX && ("string" == typeof t && (t = { url: t }), t.method = "GET", $task.fetch(t).then(t => { e(null, t, t.body) }, t => e(t.error, null, null))) } done(t = {}) { this.isQuanX && $done(t) } }(t, e) }
+
+// 统一通知出口：支持调试模式不发送通知
+function notify(title, subtitle = "", body = "", options) {
+    const isDebug = String($.getdata(CONFIG.debugKey) || "false").toLowerCase() === "true";
+    if (isDebug) {
+        console.log(`[DEBUG] 抑制通知 -> ${title} | ${subtitle} | ${body && body.substring(0, 80)}`);
+        return;
+    }
+    $.msg(title, subtitle, body, options);
+}
+
+// 获取调试模式
+function isDebugMode() {
+    return String($.getdata(CONFIG.debugKey) || "false").toLowerCase() === "true";
+}
+
+// 导出统一入口，便于本地或其他脚本调用
+async function run() {
+    return await checkActivities();
+}
+
+if (typeof module !== 'undefined') {
+    module.exports = { run, getMyCourseList, getCourseInfo, processItems };
+}

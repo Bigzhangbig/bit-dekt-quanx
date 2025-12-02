@@ -26,8 +26,13 @@ const CONFIG = {
     // Constants
     templateId: "2GNFjVv2S7xYnoWeIxGsJGP1Fu2zSs28R6mZI7Fc2kU",
     maxWaitTime: 20 * 60 * 1000, // 20 minutes
-    checkInterval: 30 * 1000 // 30 seconds log interval
+    checkInterval: 30 * 1000, // 30 seconds log interval
+    burstInterval: 50, // 并发请求间隔 ms
+    verboseBurstLog: true // 是否打印每个并发请求的响应
 };
+
+const LOG_PREFIX = '[DEKT]';
+function log(msg) { console.log(`${LOG_PREFIX} ${msg}`); }
 
 (async () => {
     await main();
@@ -67,11 +72,11 @@ async function main() {
         return;
     }
 
-    console.log(`当前待报名任务数: ${signupList.length}`);
+    log(`待报名任务数: ${signupList.length}`);
 
     // 2. 获取已报名列表 (用于去重)
     const myCourses = await getMyCourses(headers);
-    const myCourseIds = myCourses.map(c => c.course_id);
+    const myCourseIdsSet = new Set(myCourses.map(c => c.course_id));
 
     let newList = [];
     let hasChange = false;
@@ -81,11 +86,11 @@ async function main() {
         const title = item.title || "未知课程";
         const timeStr = item.time; // 格式如 "2025-11-21 10:00:00"
 
-        console.log(`\n处理课程: ${title} (ID: ${courseId})`);
+        log(`\n[Course] 处理: ${title} (ID: ${courseId})`);
 
         // 检查是否已报名
-        if (myCourseIds.includes(courseId)) {
-            console.log(`✅ 已在“我的活动”列表中，跳过并移除`);
+        if (myCourseIdsSet.has(courseId)) {
+            log(`✅ 已在“我的活动”列表中，跳过并移除`);
             hasChange = true;
             continue;
         }
@@ -100,14 +105,14 @@ async function main() {
         const diff = targetTime - now;
 
         if (isNaN(targetTime)) {
-            console.log(`⚠️ 时间格式错误: ${timeStr}，保留在列表中`);
+            log(`⚠️ 时间格式错误: ${timeStr}，保留在列表中`);
             newList.push(item);
             continue;
         }
 
         // 逻辑判断
         if (diff > CONFIG.maxWaitTime) {
-            console.log(`⏳ 距离报名开始还有 ${Math.round(diff / 60000)} 分钟，超过20分钟，跳过本次执行`);
+            log(`⏳ 距离报名开始还有 ${Math.round(diff / 60000)} 分钟，超过20分钟，跳过本次执行`);
             newList.push(item);
         } else {
             let result;
@@ -117,59 +122,51 @@ async function main() {
             
             if (Date.now() < burstEndTime) {
                 if (Date.now() < burstStartTime) {
-                    console.log(`🕒 距离报名开始还有 ${Math.round((targetTime - Date.now()) / 1000)} 秒，等待至 T-0.5s...`);
+                    log(`🕒 距离报名开始还有 ${Math.round((targetTime - Date.now()) / 1000)} 秒，等待至 T-0.5s...`);
                     await waitAndLog(burstStartTime);
                 }
-                console.log("🚀 启动并发报名模式 (T-0.5s ~ T+0.5s)");
-                result = await burstSignup(courseId, headers, burstEndTime);
+                // 再次校验，避免等待过程中错过窗口导致 0 次请求
+                if (Date.now() >= burstEndTime) {
+                    log("⏱ 并发窗口已过，切换为单次报名");
+                    result = await autoSignup(courseId, headers);
+                    try {
+                        log(`📨 单次请求返回: ${result.success ? '成功' : '失败'} | ${result.message || ''} (原因: 并发窗口已过)`);
+                    } catch (_) {}
+                } else {
+                    log("🚀 [Burst] 启动并发 (T-0.5s ~ T+0.5s)");
+                    result = await burstSignup(courseId, headers, burstEndTime);
+                }
             } else {
-                console.log(`⚡ 报名时间已过，立即尝试报名`);
+                log(`⚡ 报名时间已过，立即尝试报名`);
                 result = await autoSignup(courseId, headers);
+                try {
+                    log(`📨 单次请求返回: ${result.success ? '成功' : '失败'} | ${result.message || ''} (路径: 时间已过)`);
+                } catch (_) {}
             }
             
             if (result.success) {
-                console.log(`✅ 报名成功: ${result.message}`);
+                log(`✅ 报名成功: ${result.message}`);
                 hasChange = true;
                 
                 // 报名成功后，获取课程详情查看状态
                 await new Promise(r => setTimeout(r, 2000));
                 const courseInfo = await getCourseInfo(courseId, headers);
-                
-                let statusMsg = "报名成功";
-                let subMsg = "";
-                
-                if (courseInfo) {
-                    const statusLabel = courseInfo.status_label || "";
-                    if (statusLabel) statusMsg = `报名成功 | ${statusLabel}`;
-                    
-                    // 根据 status 显示对应的时间
-                    if (courseInfo.status === 0 && courseInfo.sign_in_start_time) {
-                        subMsg += `\n⏰ 签到: ${courseInfo.sign_in_start_time} - ${courseInfo.sign_in_end_time}`;
-                    } else if (courseInfo.status === 1 && courseInfo.sign_out_start_time) {
-                        subMsg += `\n⏰ 签退: ${courseInfo.sign_out_start_time} - ${courseInfo.sign_out_end_time}`;
-                    } else {
-                        // 如果没有 status 字段，或者 status 不是 0/1
-                        // 检查是否有时间字段，如果有，都显示出来 (兼容旧逻辑)
-                        // 但如果 statusLabel 是 "已结束"，可能就不需要显示了
-                        if (!statusLabel.includes("已结束") && !statusLabel.includes("已完成")) {
-                             if (courseInfo.sign_in_start_time && courseInfo.sign_in_end_time) {
-                                subMsg += `\n⏰ 签到: ${courseInfo.sign_in_start_time} - ${courseInfo.sign_in_end_time}`;
-                            }
-                            if (courseInfo.sign_out_start_time && courseInfo.sign_out_end_time) {
-                                subMsg += `\n⏰ 签退: ${courseInfo.sign_out_start_time} - ${courseInfo.sign_out_end_time}`;
-                            }
-                        }
-                    }
-                }
-
+                const { statusMsg, subMsg } = computeCourseInfoMessage(courseInfo, title, courseId);
                 $.msg($.name, `✅ ${statusMsg}`, `课程: ${title}\nID: ${courseId}${subMsg}`, { "open-url": "weixin://dl/business/?t=34E4TP288tr" });
                 hasNotified = true;
 
             } else {
-                console.log(`❌ 报名失败: ${result.message}`);
-                // 失败则从待报名列表移除（不再重试）
-                hasChange = true;
-                $.msg($.name, "❌ 报名失败", `课程: ${title}\nID: ${courseId}\n原因: ${result.message}`);
+                log(`❌ 报名失败: ${result.message}`);
+                // 重试策略：第一次失败保留并标记，第二次失败移除
+                if (!item.failCount) {
+                    item.failCount = 1;
+                    log(`🔁 标记可重试 (failCount=1) 保留在列表: ${courseId}`);
+                    newList.push(item);
+                } else if (item.failCount >= 1) {
+                    hasChange = true;
+                    log(`🗑 第二次失败，移除课程: ${courseId}`);
+                }
+                $.msg($.name, "❌ 报名失败", `课程: ${title}\nID: ${courseId}\n原因: ${result.message}\n重试状态: ${item.failCount ? item.failCount : 0}`, { "open-url": "weixin://dl/business/?t=34E4TP288tr" });
                 hasNotified = true;
             }
         }
@@ -178,7 +175,7 @@ async function main() {
     // 更新列表
     if (hasChange) {
         $.setdata(JSON.stringify(newList), CONFIG.signupListKey);
-        console.log("已更新待报名列表");
+        log("已更新待报名列表");
     }
     
     $.done();
@@ -187,27 +184,40 @@ async function main() {
 async function burstSignup(courseId, headers, endTime) {
     const promises = [];
     let count = 0;
-    
-    // 循环直到结束时间
-    while (Date.now() < endTime) {
-        // 发起请求但不等待结果
-        promises.push(autoSignup(courseId, headers));
+
+    // 至少发送一次，防止因时间漂移导致 0 请求
+    do {
+        const thisIndex = count + 1;
+        const p = autoSignup(courseId, headers).then(r => {
+            try {
+                if (CONFIG.verboseBurstLog) {
+                    log(`📩 [Burst] 第 ${thisIndex} 个响应: ${r.success ? '成功' : '失败'} | ${r.message || ''}`);
+                }
+            } catch (_) {}
+            return Object.assign({}, r, { __idx: thisIndex });
+        });
+        promises.push(p);
         count++;
-        // 简单的频率控制，避免瞬间请求过多导致被封或报错，这里设为50ms
-        await new Promise(r => setTimeout(r, 50));
-    }
-    
-    console.log(`⚡ 已发送 ${count} 个并发请求，等待结果...`);
-    
+        // 简单的频率控制
+        await new Promise(r => setTimeout(r, CONFIG.burstInterval));
+    } while (Date.now() < endTime);
+
+    log(`⚡ [Burst] 已发送 ${count} 个并发请求，等待结果...`);
+
     // 等待所有请求完成
     const results = await Promise.all(promises);
-    
+
     // 检查是否有成功的
-    const success = results.find(r => r.success);
+    const success = results.find(r => r && r.success);
     if (success) {
+        try {
+            if (typeof success.__idx === 'number') {
+                log(`🎯 [Burst] 首个成功来自第 ${success.__idx} 个请求`);
+            }
+        } catch (_) {}
         return success;
     }
-    
+
     // 如果都失败，返回最后一个错误
     return results[results.length - 1] || { success: false, message: "并发报名全部失败" };
 }
@@ -298,6 +308,22 @@ function httpPost(options) {
             }
         });
     });
+}
+
+function computeCourseInfoMessage(courseInfo, title, courseId) {
+    if (!courseInfo) {
+        return { statusMsg: '报名成功', subMsg: '' };
+    }
+    const statusLabel = courseInfo.status_label || '报名成功';
+    let subMsg = '';
+    // 如果存在签到 / 签退时间则列出
+    if (courseInfo.sign_in_start_time && courseInfo.sign_in_end_time) {
+        subMsg += `\n⏰ 签到: ${courseInfo.sign_in_start_time} - ${courseInfo.sign_in_end_time}`;
+    }
+    if (courseInfo.sign_out_start_time && courseInfo.sign_out_end_time) {
+        subMsg += `\n⏰ 签退: ${courseInfo.sign_out_start_time} - ${courseInfo.sign_out_end_time}`;
+    }
+    return { statusMsg: statusLabel, subMsg };
 }
 
 // Env Polyfill
