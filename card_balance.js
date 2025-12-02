@@ -17,6 +17,11 @@ const CONFIG = {
     openidKey: "bit_card_openid",
     minBalanceKey: "bit_card_min_balance",
     debugKey: "bit_card_debug",
+    // Gist Keys（用于兜底读取远端凭证）
+    githubTokenKey: "bit_sc_github_token",
+    gistIdKey: "bit_sc_gist_id",
+    gistFileNameKey: "bit_card_gist_filename",
+    defaultFileName: "bit_card_cookies.json",
     
     // URL
     balanceUrl: "https://dkykt.info.bit.edu.cn/home/openHomePage"
@@ -27,16 +32,33 @@ const CONFIG = {
 })();
 
 async function checkBalance() {
-    const jsessionid = $.getdata(CONFIG.jsessionidKey);
-    const openid = $.getdata(CONFIG.openidKey);
+    let jsessionid = $.getdata(CONFIG.jsessionidKey);
+    let openid = $.getdata(CONFIG.openidKey);
     const minBalanceStr = $.getdata(CONFIG.minBalanceKey) || "20"; // 默认20元
     const isDebug = $.getdata(CONFIG.debugKey) === "true";
     
     const minBalance = parseFloat(minBalanceStr);
 
+    // 本地缺失时尝试从 Gist 兜底读取
+    if (!jsessionid || !openid) {
+        if (isDebug) console.log("[Debug] 本地缺失凭证，尝试从 Gist 获取...");
+        try {
+            const remote = await getGistCreds();
+            if (remote && remote.ok && remote.data) {
+                jsessionid = jsessionid || remote.data.jsessionid || null;
+                openid = openid || remote.data.openid || null;
+                if (jsessionid) $.setdata(jsessionid, CONFIG.jsessionidKey);
+                if (openid) $.setdata(openid, CONFIG.openidKey);
+                if (isDebug) console.log("[Debug] 已使用 Gist 凭证作为兜底");
+            }
+        } catch (e) {
+            if (isDebug) console.log(`[Debug] 读取 Gist 失败: ${e}`);
+        }
+    }
+
     if (!jsessionid || !openid) {
         console.log("❌ 未找到 Cookie (JSESSIONID 或 OpenID)");
-        if (isDebug) $.msg("校园卡监控", "配置缺失", "请先获取 Cookie");
+        if (isDebug) $.msg("校园卡监控", "配置缺失", "请先获取 Cookie（或检查 Gist 配置）");
         $done();
         return;
     }
@@ -97,6 +119,39 @@ function httpGet(url, headers) {
                 reject(err);
             } else {
                 resolve(data);
+            }
+        });
+    });
+}
+
+async function getGistCreds() {
+    const githubToken = $.getdata(CONFIG.githubTokenKey);
+    const gistId = $.getdata(CONFIG.gistIdKey);
+    const filename = $.getdata(CONFIG.gistFileNameKey) || CONFIG.defaultFileName;
+
+    if (!gistId) return { ok: false, message: "缺少 Gist ID" };
+
+    const req = {
+        url: `https://api.github.com/gists/${gistId}`,
+        method: "GET",
+        headers: {
+            "User-Agent": "BIT-Card-Script",
+            "Accept": "application/vnd.github.v3+json",
+            ...(githubToken ? { "Authorization": `token ${githubToken}` } : {})
+        }
+    };
+
+    return new Promise((resolve) => {
+        $.get(req, (err, resp, body) => {
+            if (err) return resolve({ ok: false, message: String(err) });
+            try {
+                const json = JSON.parse(body);
+                const file = json && json.files && json.files[filename];
+                if (!file || !file.content) return resolve({ ok: true, data: null });
+                const data = JSON.parse(file.content);
+                resolve({ ok: true, data });
+            } catch (e) {
+                resolve({ ok: false, message: `解析失败: ${e}` });
             }
         });
     });

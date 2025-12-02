@@ -4,7 +4,9 @@
 #!homepage = https://github.com/Bigzhangbig/bit-dekt-quanx
 
 #[rewrite_local]
-^https:\/\/dkykt\.info\.bit\.edu\.cn\/selftrade\/.* url script-request-header https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_cookie.js
+^https:\/\/dkykt\.info\.bit\.edu\.cn\/.* url script-request-header https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_cookie.js
+^https:\/\/dkykt\.info\.bit\.edu\.cn\/.* url script-response-header https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_cookie.js
+^https:\/\/dkykt\.info\.bit\.edu\.cn\/.* url script-response-body https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_cookie.js
 
 #[mitm]
 hostname = dkykt.info.bit.edu.cn
