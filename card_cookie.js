@@ -19,7 +19,8 @@ const CONFIG = {
     githubTokenKey: "bit_sc_github_token",
     gistIdKey: "bit_sc_gist_id",
     gistFileNameKey: "bit_card_gist_filename",
-    defaultFileName: "bit_card_cookies.json"
+    defaultFileName: "bit_card_cookies.json",
+    idserialKey: "bit_card_idserial" // 学工号
 };
 
 (async () => {
@@ -42,8 +43,9 @@ async function captureCreds() {
 
     const jsessionid = extractJsessionId(reqHeaders, resHeaders);
     const openid = extractOpenId({ url, reqHeaders, resHeaders, body });
+    const idserial = extractIdSerial({ url, body });
 
-    if (!jsessionid && !openid) return; // 没有新线索，直接返回
+    if (!jsessionid && !openid && !idserial) return; // 没有新线索，直接返回
 
     // 读取远端 Gist 以便对比/补全
     const gistResult = await getGist();
@@ -54,20 +56,22 @@ async function captureCreds() {
 
     const current = {
         jsessionid: jsessionid || (gistData && gistData.jsessionid) || $.getdata("bit_card_jsessionid") || null,
-        openid: openid || (gistData && gistData.openid) || $.getdata("bit_card_openid") || null
+        openid: openid || (gistData && gistData.openid) || $.getdata("bit_card_openid") || null,
+        idserial: idserial || (gistData && gistData.idserial) || $.getdata(CONFIG.idserialKey) || null
     };
 
     if (!current.jsessionid || !current.openid) {
         // 信息仍不完整，先落本地，等待下一次补全
         if (jsessionid) $.setdata(jsessionid, "bit_card_jsessionid");
         if (openid) $.setdata(openid, "bit_card_openid");
-        console.log(`[${$.name}] 捕获到部分信息，已先写入本地：JSESSIONID=${truncate(jsessionid)} openid=${truncate(openid)}`);
+        if (idserial) $.setdata(idserial, CONFIG.idserialKey);
+        console.log(`[${$.name}] 捕获到部分信息，已先写入本地：JSESSIONID=${truncate(jsessionid)} openid=${truncate(openid)} idserial=${truncate(idserial)}`);
         return;
     }
 
     // 比较是否需要更新远端
     let needUpdate = true;
-    if (gistData && gistData.jsessionid === current.jsessionid && gistData.openid === current.openid) {
+    if (gistData && gistData.jsessionid === current.jsessionid && gistData.openid === current.openid && gistData.idserial === current.idserial) {
         needUpdate = false;
         console.log(`[${$.name}] 凭证与 Gist 一致，跳过更新`);
     } else if (!gistData) {
@@ -79,10 +83,11 @@ async function captureCreds() {
         console.log(`JSESSIONID: ${current.jsessionid}`);
         console.log(`OpenID: ${current.openid}`);
 
-        const success = await updateGist(current.jsessionid, current.openid);
+        const success = await updateGist(current.jsessionid, current.openid, current.idserial);
         if (success) {
             $.setdata(current.jsessionid, "bit_card_jsessionid");
             $.setdata(current.openid, "bit_card_openid");
+            if (current.idserial) $.setdata(current.idserial, CONFIG.idserialKey);
         } else {
             $.msg($.name, "凭证更新失败", "同步到 Gist 失败，请查看日志");
         }
@@ -147,6 +152,30 @@ function extractOpenId({ url, reqHeaders, resHeaders, body }) {
         if (m) return m[1];
     }
 
+    return null;
+}
+
+function extractIdSerial({ url, body }) {
+    // 1) URL 参数 idserial= 或 idSerial=
+    let m = /[?&#]idserial=([^&\s"'>]+)/i.exec(url || "");
+    if (m) return decodeURIComponent(m[1]);
+    m = /[?&#]idSerial=([^&\s"'>]+)/i.exec(url || "");
+    if (m) return decodeURIComponent(m[1]);
+    // 2) HTML hidden input 或脚本变量
+    if (body) {
+        m = /<input[^>]+id=["']idserial["'][^>]*value=["']([^"'>]+)["']/i.exec(body);
+        if (m) return m[1];
+        m = /name=["']idserial["'][^>]*value=["']([^"'>]+)["']/i.exec(body);
+        if (m) return m[1];
+        m = /var\s+idserial\s*=\s*['"]([^'";]+)['"]/i.exec(body);
+        if (m) return m[1];
+        // 3) 常见数字学工号：8-12位数字，和“学工”或“idserial”邻近
+        m = /(?:学工号|idserial)[^\d]{0,20}(\d{8,12})/i.exec(body);
+        if (m) return m[1];
+        // 4) 兜底：找到多个数字后再确认长度，在余额页内经常出现 <p>1234567890</p>
+        m = />(\d{8,12})<\/p>/i.exec(body);
+        if (m) return m[1];
+    }
     return null;
 }
 
@@ -220,7 +249,7 @@ async function getGist() {
     });
 }
 
-async function updateGist(jsessionid, openid) {
+async function updateGist(jsessionid, openid, idserial) {
     const githubToken = $.getdata(CONFIG.githubTokenKey);
     const gistId = $.getdata(CONFIG.gistIdKey);
     const filename = $.getdata(CONFIG.gistFileNameKey) || CONFIG.defaultFileName;
@@ -233,6 +262,7 @@ async function updateGist(jsessionid, openid) {
     const content = JSON.stringify({
         jsessionid: jsessionid,
         openid: openid,
+        idserial: idserial || null,
         updated_at: new Date().toISOString()
     }, null, 2);
 

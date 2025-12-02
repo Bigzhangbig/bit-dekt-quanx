@@ -90,13 +90,14 @@
 
 订阅地址: `https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/boxjs.json`
 
-> 提示：`card_cookie.js` 会从 URL/Cookie/Referer/Location/响应体多处提取 openid 与 JSESSIONID；信息不全时先写本地，补全后再同步 Gist。
+> 提示：`card_cookie.js` 会从 URL/Cookie/Referer/Location/响应体多处提取 openid 与 JSESSIONID，并尝试自动捕获学工号（idserial）；信息不全时先写本地，补全后再同步 Gist（字段包含 jsessionid/openid/idserial/updated_at）。
 
 如需同步/兜底读取 Gist，请在 BoxJS 配置：
 
 - `bit_sc_github_token`：GitHub Token（访问 Gist，可选）
 - `bit_sc_gist_id`：Gist ID（可选）
 - `bit_card_gist_filename`：Gist 文件名（默认 `bit_card_cookies.json`）
+- `bit_card_idserial`：学工号（自动捕获失败时可手动填写，用于主动刷新与本地探测）
 
 `card_balance.js` 会优先使用本地 BoxJS 值；若缺失，会尝试从上述 Gist 兜底读取。
 
