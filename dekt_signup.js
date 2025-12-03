@@ -157,16 +157,10 @@ async function main() {
 
             } else {
                 log(`❌ 报名失败: ${result.message}`);
-                // 重试策略：第一次失败保留并标记，第二次失败移除
-                if (!item.failCount) {
-                    item.failCount = 1;
-                    log(`🔁 标记可重试 (failCount=1) 保留在列表: ${courseId}`);
-                    newList.push(item);
-                } else if (item.failCount >= 1) {
-                    hasChange = true;
-                    log(`🗑 第二次失败，移除课程: ${courseId}`);
-                }
-                $.msg($.name, "❌ 报名失败", `课程: ${title}\nID: ${courseId}\n原因: ${result.message}\n重试状态: ${item.failCount ? item.failCount : 0}`, { "open-url": "weixin://dl/business/?t=34E4TP288tr" });
+                // 失败后直接移除课程，不再重试
+                hasChange = true;
+                log(`🗑 报名失败，移除课程: ${courseId}`);
+                $.msg($.name, "❌ 报名失败", `课程: ${title}\nID: ${courseId}\n原因: ${result.message}\n重试状态: 0`, { "open-url": "weixin://dl/business/?t=34E4TP288tr" });
                 hasNotified = true;
             }
         }
