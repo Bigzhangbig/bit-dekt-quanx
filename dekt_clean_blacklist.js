@@ -24,9 +24,21 @@ const CONFIG = {
             return;
         }
 
-        // 读取黑名单
+        // 读取黑名单（按 boxjs.json 约定：逗号分隔的文本）
         const blacklistStr = $.getdata(CONFIG.blacklistKey) || "";
-        let blacklist = blacklistStr.split(/[,，]/).map(id => id.trim()).filter(id => id);
+        let blacklist = [];
+        try {
+            // 兼容用户误填为 JSON 数组的情况
+            const maybeJson = blacklistStr.trim();
+            if (maybeJson.startsWith("[") && maybeJson.endsWith("]")) {
+                const arr = JSON.parse(maybeJson);
+                if (Array.isArray(arr)) blacklist = arr.map(x => String(x).trim()).filter(Boolean);
+            } else {
+                blacklist = blacklistStr.split(/[，,]/).map(id => id.trim()).filter(id => id);
+            }
+        } catch {
+            blacklist = blacklistStr.split(/[，,]/).map(id => id.trim()).filter(id => id);
+        }
 
         if (blacklist.length === 0) {
             $.msg($.name, "黑名单为空", "无需清理");
@@ -34,19 +46,20 @@ const CONFIG = {
             return;
         }
 
-        // 获取课程列表
+        // 获取课程列表（统一归一为数组）
         const courseList = await getCourseList(token, headers);
-        if (!courseList) {
+        if (!Array.isArray(courseList)) {
             $.msg($.name, "获取课程列表失败", "请检查网络或Token");
             $done();
             return;
         }
 
-        // 过滤黑名单
+        // 过滤黑名单（依据抓包确认为字段：id 与 status）
         const validIds = blacklist.filter(id => {
-            const course = courseList.find(c => String(c.id) === id);
-            // 仅保留未结束且未取消的课程
-            return course && course.status !== 3 && course.status !== 4;
+            const course = courseList.find(c => c && String(c.id) === String(id));
+            if (!course) return false;
+            // 仅保留未结束(3)且未取消(4)的课程
+            return course.status !== 3 && course.status !== 4;
         });
 
         // 写回 BoxJS
@@ -75,7 +88,9 @@ async function getCourseList(token, headers) {
                 response => {
                     try {
                         const body = JSON.parse(response.body);
-                        resolve(body.data || []);
+                        // 严格按抓包结构：data.items 为数组
+                        const list = body && body.data && Array.isArray(body.data.items) ? body.data.items : null;
+                        resolve(list || null);
                     } catch (e) {
                         resolve(null);
                     }
