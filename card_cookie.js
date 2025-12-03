@@ -20,7 +20,8 @@ const CONFIG = {
     gistIdKey: "bit_sc_gist_id",
     gistFileNameKey: "bit_card_gist_filename",
     defaultFileName: "bit_card_cookies.json",
-    idserialKey: "bit_card_idserial" // 学工号
+    idserialKey: "bit_card_idserial", // 学工号
+    headersKey: "bit_card_headers" // 存放各 API 请求头的 BoxJS 键
 };
 
 (async () => {
@@ -45,6 +46,9 @@ async function captureCreds() {
     const openid = extractOpenId({ url, reqHeaders, resHeaders, body });
     const idserial = extractIdSerial({ url, body });
 
+    // 采集并归档本次请求的头部，用于后续 API 复用
+    const collectedHeaders = collectApiHeaders($request, reqHeaders);
+
     if (!jsessionid && !openid && !idserial) return; // 没有新线索，直接返回
 
     // 读取远端 Gist 以便对比/补全
@@ -54,10 +58,13 @@ async function captureCreds() {
         $.msg($.name, "获取 Gist 失败", gistResult.message || "无法获取远端数据，请检查配置或网络");
     }
 
+    const mergedHeaders = mergeHeadersMap(collectedHeaders, (gistData && gistData.headers) || parseBoxHeaders($.getdata(CONFIG.headersKey)));
+
     const current = {
         jsessionid: jsessionid || (gistData && gistData.jsessionid) || $.getdata("bit_card_jsessionid") || null,
         openid: openid || (gistData && gistData.openid) || $.getdata("bit_card_openid") || null,
-        idserial: idserial || (gistData && gistData.idserial) || $.getdata(CONFIG.idserialKey) || null
+        idserial: idserial || (gistData && gistData.idserial) || $.getdata(CONFIG.idserialKey) || null,
+        headers: mergedHeaders
     };
 
     if (!current.jsessionid || !current.openid) {
@@ -65,13 +72,14 @@ async function captureCreds() {
         if (jsessionid) $.setdata(jsessionid, "bit_card_jsessionid");
         if (openid) $.setdata(openid, "bit_card_openid");
         if (idserial) $.setdata(idserial, CONFIG.idserialKey);
+        if (mergedHeaders && Object.keys(mergedHeaders).length) $.setdata(JSON.stringify(mergedHeaders), CONFIG.headersKey);
         console.log(`[${$.name}] 捕获到部分信息，已先写入本地：JSESSIONID=${truncate(jsessionid)} openid=${truncate(openid)} idserial=${truncate(idserial)}`);
         return;
     }
 
     // 比较是否需要更新远端
     let needUpdate = true;
-    if (gistData && gistData.jsessionid === current.jsessionid && gistData.openid === current.openid && gistData.idserial === current.idserial) {
+    if (gistData && gistData.jsessionid === current.jsessionid && gistData.openid === current.openid && gistData.idserial === current.idserial && headersEqual((gistData && gistData.headers) || {}, current.headers || {})) {
         needUpdate = false;
         console.log(`[${$.name}] 凭证与 Gist 一致，跳过更新`);
     } else if (!gistData) {
@@ -83,11 +91,12 @@ async function captureCreds() {
         console.log(`JSESSIONID: ${current.jsessionid}`);
         console.log(`OpenID: ${current.openid}`);
 
-        const success = await updateGist(current.jsessionid, current.openid, current.idserial);
+        const success = await updateGist(current.jsessionid, current.openid, current.idserial, current.headers || {});
         if (success) {
             $.setdata(current.jsessionid, "bit_card_jsessionid");
             $.setdata(current.openid, "bit_card_openid");
             if (current.idserial) $.setdata(current.idserial, CONFIG.idserialKey);
+            if (current.headers && Object.keys(current.headers).length) $.setdata(JSON.stringify(current.headers), CONFIG.headersKey);
         } else {
             $.msg($.name, "凭证更新失败", "同步到 Gist 失败，请查看日志");
         }
@@ -249,7 +258,7 @@ async function getGist() {
     });
 }
 
-async function updateGist(jsessionid, openid, idserial) {
+async function updateGist(jsessionid, openid, idserial, headersMap) {
     const githubToken = $.getdata(CONFIG.githubTokenKey);
     const gistId = $.getdata(CONFIG.gistIdKey);
     const filename = $.getdata(CONFIG.gistFileNameKey) || CONFIG.defaultFileName;
@@ -263,6 +272,7 @@ async function updateGist(jsessionid, openid, idserial) {
         jsessionid: jsessionid,
         openid: openid,
         idserial: idserial || null,
+        headers: headersMap || {},
         updated_at: new Date().toISOString()
     }, null, 2);
 
@@ -306,3 +316,60 @@ async function updateGist(jsessionid, openid, idserial) {
 
 // --- Env Polyfill ---
 function Env(t, e) { class s { constructor(t) { this.env = t } } return new class { constructor(t) { this.name = t, this.logs = [], this.isSurge = !1, this.isQuanX = "undefined" != typeof $task, this.isLoon = !1 } getdata(t) { let e = this.getval(t); if (/^@/.test(t)) { const [, s, i] = /^@(.*?)\.(.*?)$/.exec(t), r = s ? this.getval(s) : ""; if (r) try { const t = JSON.parse(r); e = t ? this.getval(i, t) : null } catch (t) { e = "" } } return e } setdata(t, e) { let s = !1; if (/^@/.test(e)) { const [, i, r] = /^@(.*?)\.(.*?)$/.exec(e), o = this.getval(i), h = i ? "null" === o ? null : o || "{}" : "{}"; try { const e = JSON.parse(h); this.setval(r, t, e), s = !0, this.setval(i, JSON.stringify(e)) } catch (e) { const o = {}; this.setval(r, t, o), s = !0, this.setval(i, JSON.stringify(o)) } } else s = this.setval(t, e); return s } getval(t) { return this.isQuanX ? $prefs.valueForKey(t) : "" } setval(t, e) { return this.isQuanX ? $prefs.setValueForKey(t, e) : "" } msg(e = t, s = "", i = "", r) { this.isQuanX && $notify(e, s, i, r) } get(t, e = (() => { })) { this.isQuanX && ("string" == typeof t && (t = { url: t }), t.method = "GET", $task.fetch(t).then(t => { e(null, t, t.body) }, t => e(t.error, null, null))) } done(t = {}) { this.isQuanX && $done(t) } }(t, e) }
+
+// --- Headers helpers ---
+function collectApiHeaders($req, headers) {
+    if (!$req || !headers) return {};
+    const url = $req.url || "";
+    const method = ($req.method || 'GET').toUpperCase();
+    try {
+        const u = new URL(url);
+        const path = u.pathname || '/';
+        const key = `${method} ${path}`;
+        const sanitized = sanitizeHeaders(headers);
+        const out = {};
+        out[key] = sanitized;
+        return out;
+    } catch {
+        return {};
+    }
+}
+
+function sanitizeHeaders(h) {
+    const lower = {};
+    for (const k in h) lower[k.toLowerCase()] = h[k];
+    const omit = new Set(['content-length', 'host', 'connection', 'accept-encoding']);
+    const keep = {};
+    for (const k in lower) {
+        if (omit.has(k)) continue;
+        keep[k] = lower[k];
+    }
+    return keep;
+}
+
+function mergeHeadersMap(newMap, baseMap) {
+    const result = Object.assign({}, baseMap || {});
+    if (newMap) {
+        for (const k of Object.keys(newMap)) {
+            result[k] = Object.assign({}, result[k] || {}, newMap[k]);
+        }
+    }
+    return result;
+}
+
+function headersEqual(a, b) {
+    return stableStringify(a) === stableStringify(b);
+}
+
+function stableStringify(obj) {
+    if (!obj) return '';
+    const allKeys = [];
+    JSON.stringify(obj, (key, value) => { allKeys.push(key); return value; });
+    allKeys.sort();
+    return JSON.stringify(obj, allKeys);
+}
+
+function parseBoxHeaders(str) {
+    if (!str) return {};
+    try { return JSON.parse(str); } catch { return {}; }
+}

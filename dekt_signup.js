@@ -184,6 +184,7 @@ async function main() {
 async function burstSignup(courseId, headers, endTime) {
     const promises = [];
     let count = 0;
+    let stopBurst = false; // 收到成功响应后停止继续发送
 
     // 至少发送一次，防止因时间漂移导致 0 请求
     do {
@@ -194,13 +195,17 @@ async function burstSignup(courseId, headers, endTime) {
                     log(`📩 [Burst] 第 ${thisIndex} 个响应: ${r.success ? '成功' : '失败'} | ${r.message || ''}`);
                 }
             } catch (_) {}
+            // 若成功，标记停止后续发送
+            if (r && r.success) {
+                stopBurst = true;
+            }
             return Object.assign({}, r, { __idx: thisIndex });
         });
         promises.push(p);
         count++;
         // 简单的频率控制
         await new Promise(r => setTimeout(r, CONFIG.burstInterval));
-    } while (Date.now() < endTime);
+    } while (Date.now() < endTime && !stopBurst);
 
     log(`⚡ [Burst] 已发送 ${count} 个并发请求，等待结果...`);
 
@@ -276,10 +281,12 @@ async function autoSignup(courseId, headers) {
 
     try {
         const result = await httpPost(options);
-        if (result.code === 200 || (result.message && result.message.includes("成功"))) {
-            return { success: true, message: result.message || "报名成功" };
+        const msg = (result && result.message) ? String(result.message) : '';
+        const isAlreadyApplied = /已报名此课程/.test(msg);
+        if (result.code === 200 || (msg && msg.includes("成功")) || isAlreadyApplied) {
+            return { success: true, message: msg || "报名成功" };
         } else {
-            return { success: false, message: result.message || "未知错误" };
+            return { success: false, message: msg || "未知错误" };
         }
     } catch (e) {
         return { success: false, message: `请求异常: ${e}` };
