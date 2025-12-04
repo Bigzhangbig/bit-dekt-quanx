@@ -84,18 +84,18 @@ function fetchGist(gistId, filename, token) {
       console.log('ℹ️ 未找到该文件或文件为空');
       process.exit(0);
     }
-    const jsid = content.jsessionid || '';
-    const oid = content.openid || '';
-    const time = content.updated_at || '';
+    const jsessionId = content.jsessionid || '';
+    const openId = content.openid || '';
+    const updatedTime = content.updated_at || '';
 
-    const trunc = (v) => !v ? '' : (v.length <= 10 ? v : `${v.slice(0,4)}...${v.slice(-4)}`);
+    const truncateValue = (value) => !value ? '' : (value.length <= 10 ? value : `${value.slice(0,4)}...${value.slice(-4)}`);
 
     console.log('✅ Gist 内容读取成功：');
-    console.log(`- JSESSIONID: ${trunc(jsid)}`);
-    console.log(`- openid    : ${trunc(oid)}`);
-    console.log(`- updated_at: ${time}`);
+    console.log(`- JSESSIONID: ${truncateValue(jsessionId)}`);
+    console.log(`- openid    : ${truncateValue(openId)}`);
+    console.log(`- updated_at: ${updatedTime}`);
 
-    if (!jsid || !oid) {
+    if (!jsessionId || !openId) {
       console.log('⚠️ 提示：当前 Gist 信息不完整（可能尚未抓到全部字段）。建议再走一次校园卡入口。');
     }
   } catch (e) {

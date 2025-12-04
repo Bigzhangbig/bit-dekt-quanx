@@ -104,4 +104,81 @@ async function getCourseList(token, headers) {
 }
 
 // --- Env Polyfill ---
-function Env(t, e) { class s { constructor(t) { this.env = t } } return new class { constructor(t) { this.name = t, this.logs = [], this.isSurge = !1, this.isQuanX = "undefined" != typeof $task, this.isLoon = !1 } getdata(t) { let e = this.getval(t); if (/^@/.test(t)) { const [, s, i] = /^@(.*?)\.(.*?)$/.exec(t), r = s ? this.getval(s) : ""; if (r) try { const t = JSON.parse(r); e = t ? this.getval(i, t) : null } catch (t) { e = "" } } return e } setdata(t, e) { let s = !1; if (/^@/.test(e)) { const [, i, r] = /^@(.*?)\.(.*?)$/.exec(e), o = this.getval(i), h = i ? "null" === o ? null : o || "{}" : "{}"; try { const e = JSON.parse(h); this.setval(r, t, e), s = !0, this.setval(i, JSON.stringify(e)) } catch (e) { const o = {}; this.setval(r, t, o), s = !0, this.setval(i, JSON.stringify(o)) } } else s = this.setval(t, e); return s } getval(t) { return this.isQuanX ? $prefs.valueForKey(t) : "" } setval(t, e) { return this.isQuanX ? $prefs.setValueForKey(t, e) : "" } msg(e = t, s = "", i = "", r) { this.isQuanX && $notify(e, s, i, r) } get(t, e = (() => { })) { this.isQuanX && ("string" == typeof t && (t = { url: t }), t.method = "GET", $task.fetch(t).then(t => { e(null, t, t.body) }, t => e(t.error, null, null))) } done(t = {}) { this.isQuanX && $done(t) } }(t, e) }
+function Env(scriptName, options) {
+    class EnvHelper {
+        constructor(envInstance) {
+            this.env = envInstance;
+        }
+    }
+    return new class {
+        constructor(name) {
+            this.name = name;
+            this.logs = [];
+            this.isSurge = false;
+            this.isQuanX = typeof $task !== "undefined";
+            this.isLoon = false;
+        }
+        getdata(key) {
+            let value = this.getval(key);
+            if (/^@/.test(key)) {
+                const [, namespace, propertyKey] = /^@(.*?)\.(.*?)$/.exec(key);
+                const storedJson = namespace ? this.getval(namespace) : "";
+                if (storedJson) {
+                    try {
+                        const parsedData = JSON.parse(storedJson);
+                        value = parsedData ? this.getval(propertyKey, parsedData) : null;
+                    } catch (parseError) {
+                        value = "";
+                    }
+                }
+            }
+            return value;
+        }
+        setdata(value, key) {
+            let success = false;
+            if (/^@/.test(key)) {
+                const [, namespace, propertyKey] = /^@(.*?)\.(.*?)$/.exec(key);
+                const storedValue = this.getval(namespace);
+                const parsedOrDefault = namespace ? (storedValue === "null" ? null : storedValue || "{}") : "{}";
+                try {
+                    const dataObject = JSON.parse(parsedOrDefault);
+                    this.setval(propertyKey, value, dataObject);
+                    success = true;
+                    this.setval(namespace, JSON.stringify(dataObject));
+                } catch (parseError) {
+                    const newDataObject = {};
+                    this.setval(propertyKey, value, newDataObject);
+                    success = true;
+                    this.setval(namespace, JSON.stringify(newDataObject));
+                }
+            } else {
+                success = this.setval(value, key);
+            }
+            return success;
+        }
+        getval(key) {
+            return this.isQuanX ? $prefs.valueForKey(key) : "";
+        }
+        setval(value, key) {
+            return this.isQuanX ? $prefs.setValueForKey(value, key) : "";
+        }
+        msg(title = scriptName, subtitle = "", body = "", options) {
+            this.isQuanX && $notify(title, subtitle, body, options);
+        }
+        get(requestOptions, callback = (() => {})) {
+            if (this.isQuanX) {
+                if (typeof requestOptions === "string") {
+                    requestOptions = { url: requestOptions };
+                }
+                requestOptions.method = "GET";
+                $task.fetch(requestOptions).then(
+                    response => callback(null, response, response.body),
+                    error => callback(error.error, null, null)
+                );
+            }
+        }
+        done(result = {}) {
+            this.isQuanX && $done(result);
+        }
+    }(scriptName, options);
+}
