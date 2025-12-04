@@ -530,11 +530,6 @@ function httpPost(options) {
 
 // --- Env Polyfill ---
 function Env(scriptName, options) {
-    class EnvHelper {
-        constructor(envInstance) {
-            this.env = envInstance;
-        }
-    }
     return new class {
         constructor(name) {
             this.name = name;

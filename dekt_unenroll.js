@@ -181,11 +181,6 @@ function toInt(v) {
 
 // Env Polyfill（与 activities 保持一致，支持 QuanX）
 function Env(scriptName, options) {
-    class EnvHelper {
-        constructor(envInstance) {
-            this.env = envInstance;
-        }
-    }
     return new class {
         constructor(name) {
             this.name = name;
