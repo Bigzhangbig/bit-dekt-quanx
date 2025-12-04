@@ -1,0 +1,25 @@
+# Environment variables
+env.json
+.env
+.venv/
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+npm-debug.log*
+
+# Capture data
+202*-*-*/
+
+# QR Codes
+qrcodes/
+
+# OS files
+.DS_Store
+Thumbs.db
+*trades*
+202*_*/

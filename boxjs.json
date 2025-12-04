@@ -1,0 +1,424 @@
+{
+  "id": "bit_dekt_quanx",
+  "name": "北理工第二课堂助手",
+  "author": "@Bigzhangbig",
+  "icon": "https://avatars.githubusercontent.com/u/78358414",
+  "repo": "https://github.com/Bigzhangbig/bit-dekt-quanx",
+  "apps": [
+    {
+      "id": "bit_dekt",
+      "name": "北理工第二课堂",
+      "keys": [
+        "bit_sc_token",
+        "bit_sc_headers",
+        "bit_sc_user_id",
+        "bit_sc_cache",
+        "bit_sc_signup_course_id",
+        "bit_sc_blacklist",
+        "bit_sc_debug",
+        "bit_sc_notify_no_update",
+        "bit_sc_pickup_mode",
+        "bit_sc_random_delay",
+        "bit_sc_signup_list",
+        "bit_sc_github_token",
+        "bit_sc_gist_id",
+        "bit_sc_gist_filename",
+        "bit_sc_auto_sign_all",
+        "bit_sc_runtime_sign_ids"
+      ],
+      "descs_html": [
+        "请先在 Quantumult X 中添加重写规则获取 Token。",
+        "脚本会自动监控第二课堂的新活动并发送通知。",
+        "新增：我的活动脚本，可监控待签到活动并快速获取签到二维码。"
+      ],
+      "settings": [
+        {
+          "id": "bit_sc_signup_course_id",
+          "name": "报名课程ID",
+          "val": "",
+          "type": "text",
+          "desc": "输入课程ID（数字），用于报名/取消报名脚本"
+        },
+        {
+          "id": "bit_sc_blacklist",
+          "name": "课程黑名单",
+          "val": "",
+          "type": "text",
+          "desc": "输入不想报名的课程ID，用逗号分隔"
+        },
+        {
+          "id": "bit_sc_debug",
+          "name": "开启调试日志",
+          "val": false,
+          "type": "boolean",
+          "desc": "开启后打印详细日志，方便排查问题"
+        },
+        {
+          "id": "bit_sc_notify_no_update",
+          "name": "无新课程通知",
+          "val": false,
+          "type": "boolean",
+          "desc": "开启后，即使没有新课程也会发送通知（心跳检测）"
+        },
+        {
+          "id": "bit_sc_pickup_mode",
+          "name": "开启捡漏模式",
+          "val": false,
+          "type": "boolean",
+          "desc": "开启后，监控脚本会自动尝试报名所有进行中且有名额的课程"
+        },
+        {
+          "id": "bit_sc_random_delay",
+          "name": "随机延迟(秒)",
+          "val": "0",
+          "type": "text",
+          "desc": "每次请求前的随机延迟上限(秒)，0为不延迟"
+        },
+        {
+          "id": "bit_sc_signup_list",
+          "name": "待报名列表(自动)",
+          "val": "[]",
+          "type": "textarea",
+          "auto_grow": true,
+          "rows": 5,
+          "desc": "自动记录的待报名课程，格式：[{\"id\":123,\"title\":\"xx\",\"time\":\"2025-..\"}]。填0或过去时间可立即报名。"
+        },
+        {
+          "id": "bit_sc_filter_college",
+          "name": "学院筛选",
+          "val": "不限",
+          "type": "selects",
+          "items": [
+            {
+              "key": "不限",
+              "label": "不限"
+            },
+            {
+              "key": "睿信书院",
+              "label": "睿信书院"
+            },
+            {
+              "key": "求是书院",
+              "label": "求是书院"
+            },
+            {
+              "key": "精工书院",
+              "label": "精工书院"
+            },
+            {
+              "key": "明德书院",
+              "label": "明德书院"
+            },
+            {
+              "key": "经管书院",
+              "label": "经管书院"
+            },
+            {
+              "key": "知艺书院",
+              "label": "知艺书院"
+            },
+            {
+              "key": "特立书院",
+              "label": "特立书院"
+            },
+            {
+              "key": "北京书院",
+              "label": "北京书院"
+            },
+            {
+              "key": "马克思主义学院",
+              "label": "马克思主义学院"
+            },
+            {
+              "key": "研究生院",
+              "label": "研究生院"
+            },
+            {
+              "key": "计算机学院",
+              "label": "计算机学院"
+            },
+            {
+              "key": "光电学院",
+              "label": "光电学院"
+            },
+            {
+              "key": "信息与电子学院",
+              "label": "信息与电子学院"
+            },
+            {
+              "key": "网络空间安全学院",
+              "label": "网络空间安全学院"
+            },
+            {
+              "key": "集成电路与电子学院",
+              "label": "集成电路与电子学院"
+            },
+            {
+              "key": "机械与车辆学院",
+              "label": "机械与车辆学院"
+            },
+            {
+              "key": "数学与统计学院",
+              "label": "数学与统计学院"
+            },
+            {
+              "key": "物理学院",
+              "label": "物理学院"
+            },
+            {
+              "key": "机电学院",
+              "label": "机电学院"
+            },
+            {
+              "key": "生命学院",
+              "label": "生命学院"
+            },
+            {
+              "key": "宇航学院",
+              "label": "宇航学院"
+            },
+            {
+              "key": "医学技术学院",
+              "label": "医学技术学院"
+            },
+            {
+              "key": "自动化学院",
+              "label": "自动化学院"
+            },
+            {
+              "key": "人文与社会科学学院",
+              "label": "人文与社会科学学院"
+            },
+            {
+              "key": "国际组织创新学院",
+              "label": "国际组织创新学院"
+            },
+            {
+              "key": "法学院学生",
+              "label": "法学院学生"
+            },
+            {
+              "key": "材料学院",
+              "label": "材料学院"
+            },
+            {
+              "key": "外国语学院",
+              "label": "外国语学院"
+            },
+            {
+              "key": "化学与化工学院",
+              "label": "化学与化工学院"
+            }
+          ],
+          "desc": "仅通知包含选中学院的课程（模糊匹配）"
+        },
+        {
+          "id": "bit_sc_filter_grade",
+          "name": "年级筛选",
+          "val": "不限",
+          "type": "selects",
+          "items": [
+            {
+              "key": "不限",
+              "label": "不限"
+            },
+            {
+              "key": "2025级",
+              "label": "2025级"
+            },
+            {
+              "key": "2024级",
+              "label": "2024级"
+            },
+            {
+              "key": "2023级",
+              "label": "2023级"
+            },
+            {
+              "key": "2022级",
+              "label": "2022级"
+            }
+          ],
+          "desc": "仅通知包含选中年级的课程"
+        },
+        {
+          "id": "bit_sc_filter_type",
+          "name": "类型筛选",
+          "val": "不限",
+          "type": "selects",
+          "items": [
+            {
+              "key": "不限",
+              "label": "不限"
+            },
+            {
+              "key": "本科生",
+              "label": "本科生"
+            },
+            {
+              "key": "研究生",
+              "label": "研究生"
+            }
+          ],
+          "desc": "仅通知包含选中类型的课程"
+        },
+        {
+          "id": "bit_sc_auto_categories",
+          "name": "自动报名栏目",
+          "val": "不限",
+          "type": "selects",
+          "items": [
+            { "key": "不限", "label": "不限" },
+            { "key": 1, "label": "理想信念" },
+            { "key": 2, "label": "科学素养" },
+            { "key": 3, "label": "社会贡献" },
+            { "key": 4, "label": "团队协作" },
+            { "key": 5, "label": "文化互鉴" },
+            { "key": 6, "label": "健康生活" }
+          ],
+          "desc": "选择要自动报名/捡漏的栏目（可多选），默认不限（全部栏目均可自动报名/捡漏）。建议使用 ID（默认已设置为 1-6）。"
+        },
+        {
+          "id": "bit_sc_runtime_sign_ids",
+          "name": "运行时自动签到课程ID",
+          "val": "",
+          "type": "text",
+          "desc": "目标课程ID（逗号/空格分隔）。无论列表接口返回与否，目标ID总会单独处理。仅设置一个ID时会跳过随机等待。与本地脚本参数等效，自动去重。autoSignAll=true时已处理过的课程会跳过。"
+        },
+        {
+          "id": "bit_sc_auto_sign_all",
+          "name": "自动签到/签退所有",
+          "val": false,
+          "type": "boolean",
+          "desc": "开启后自动处理所有待签到/签退课程（按列表接口）；目标ID若已在列表阶段处理过则跳过重复。默认关闭。"
+        },
+        {
+          "id": "bit_sc_github_token",
+          "name": "GitHub Token",
+          "val": "",
+          "type": "text",
+          "desc": "用于自动同步Cookie到Gist (repo权限)"
+        },
+        {
+          "id": "bit_sc_gist_id",
+          "name": "Gist ID",
+          "val": "",
+          "type": "text",
+          "desc": "用于存储Cookie的Gist ID"
+        },
+        {
+          "id": "bit_sc_gist_filename",
+          "name": "Gist 文件名",
+          "val": "bit_cookies.json",
+          "type": "text",
+          "desc": "Gist中存储Cookie的文件名"
+        },
+        {
+          "id": "bit_sc_user_id",
+          "name": "用户ID (自动获取)",
+          "val": "",
+          "type": "text",
+          "desc": "无需手动填写，从 Token 中解析获得",
+          "disabled": true
+        },
+        {
+          "id": "bit_sc_token",
+          "name": "Token (自动获取)",
+          "val": "",
+          "type": "text",
+          "desc": "无需手动填写，请通过重写获取",
+          "disabled": true
+        }
+      ],
+      "author": "@Bigzhangbig",
+      "repo": "https://github.com/Bigzhangbig/bit-dekt-quanx",
+      "icons": [
+        "https://avatars.githubusercontent.com/u/78358414",
+        "https://avatars.githubusercontent.com/u/78358414"
+      ]
+    },
+    {
+      "id": "bit_card",
+      "name": "北理工校园卡助手",
+      "keys": [
+        "bit_card_jsessionid",
+        "bit_card_openid",
+        "bit_card_min_balance",
+        "bit_card_debug",
+        "bit_sc_github_token",
+        "bit_sc_gist_id",
+        "bit_card_gist_filename"
+      ],
+      "descs_html": [
+        "请先在 Quantumult X 中添加重写规则获取 Cookie。",
+        "脚本会自动抓取校园卡流水查询所需的凭证并同步到 Gist。",
+        "新增：余额监控功能，低于设定值时发送通知。"
+      ],
+      "settings": [
+        {
+          "id": "bit_card_min_balance",
+          "name": "余额提醒阈值",
+          "val": "20",
+          "type": "text",
+          "desc": "当余额低于此金额(元)时发送通知"
+        },
+        {
+          "id": "bit_card_debug",
+          "name": "开启调试日志",
+          "val": false,
+          "type": "boolean",
+          "desc": "开启后打印详细日志"
+        },
+        {
+          "id": "bit_sc_github_token",
+          "name": "GitHub Token",
+          "val": "",
+          "type": "text",
+          "desc": "与第二课堂共用，用于自动同步Cookie到Gist"
+        },
+        {
+          "id": "bit_sc_gist_id",
+          "name": "Gist ID",
+          "val": "",
+          "type": "text",
+          "desc": "与第二课堂共用，用于存储Cookie的Gist ID"
+        },
+        {
+          "id": "bit_card_gist_filename",
+          "name": "Gist 文件名",
+          "val": "bit_card_cookies.json",
+          "type": "text",
+          "desc": "Gist中存储校园卡Cookie的文件名"
+        },
+        {
+          "id": "bit_card_jsessionid",
+          "name": "JSESSIONID (自动获取)",
+          "val": "",
+          "type": "text",
+          "desc": "无需手动填写，请通过重写获取",
+          "disabled": true
+        },
+        {
+          "id": "bit_card_openid",
+          "name": "OpenID (自动获取)",
+          "val": "",
+          "type": "text",
+          "desc": "无需手动填写，请通过重写获取",
+          "disabled": true
+        }
+      ],
+      "author": "@Bigzhangbig",
+      "repo": "https://github.com/Bigzhangbig/bit-dekt-quanx",
+      "icons": [
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/BIT.png",
+        "https://raw.githubusercontent.com/Orz-3/mini/master/Color/BIT.png"
+      ]
+    }
+  ],
+  "boxjs": {
+    "pickup_mode": "false",
+    "auto_sign_all": "false",
+    "signup_list": "[]",
+    "runtime_sign_ids": ""
+  }
+}
