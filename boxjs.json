@@ -356,7 +356,7 @@
           "script": "https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/dekt_unenroll.js"
         },
         {
-          "name": "签到 - Signin",
+          "name": "签到 - Sign In",
           "script": "https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/dekt_signin.js"
         },
         {
