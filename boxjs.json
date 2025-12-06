@@ -21,7 +21,6 @@
         "bit_sc_debug",
         "bit_sc_notify_no_update",
         "bit_sc_pickup_mode",
-        "bit_sc_auto_categories",
         "bit_sc_random_delay",
         "bit_sc_signup_list",
         "bit_sc_github_token",
@@ -290,18 +289,10 @@
         },
         {
           "id": "bit_sc_auto_blacklist_categories",
-          "name": "自动报名栏目黑名单",
+          "name": "自动报名栏目黑名单 (输入 ID, 逗号分隔)",
           "val": "",
-          "type": "selects",
-          "items": [
-            { "key": 1, "label": "理想信念" },
-            { "key": 2, "label": "科学素养" },
-            { "key": 3, "label": "社会贡献" },
-            { "key": 4, "label": "团队协作" },
-            { "key": 5, "label": "文化互鉴" },
-            { "key": 6, "label": "健康生活" }
-          ],
-          "desc": "选择不自动报名/捡漏的栏目（可多选），留空表示全部栏目均可自动报名/捡漏。被选中的栏目将不会自动报名。"
+          "type": "text",
+          "desc": "输入不自动报名/捡漏的栏目 ID 列表，使用逗号分隔。例如: \"1,3\" 表示跳过 '理想信念' 与 '社会贡献'。栏目映射: 1=理想信念, 2=科学素养, 3=社会贡献, 4=团队协作, 5=文化互鉴, 6=健康生活。留空表示全部栏目均可自动报名/捡漏。"
         },
         {
           "id": "bit_sc_runtime_sign_ids",
