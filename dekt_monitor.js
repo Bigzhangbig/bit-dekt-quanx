@@ -71,6 +71,7 @@ async function checkCourses() {
     const filterGrade = $.getdata(CONFIG.filterGradeKey) || "不限";
     const filterType = $.getdata(CONFIG.filterTypeKey) || "不限";
     // 自动报名/捡漏栏目黑名单配置（BoxJS 多选）：空或多选结果（CSV 或 JSON 数组）
+    // 读取黑名单配置（仅使用新键 bit_sc_auto_blacklist_categories）
     const filterAutoBlacklistCategoriesRaw = $.getdata(CONFIG.filterAutoBlacklistCategoriesKey) || "";
 
     // 解析自动报名栏目黑名单（支持 ID 或名称），
@@ -108,6 +109,15 @@ async function checkCourses() {
         console.log(`[Debug] 解析自动报名栏目黑名单失败: ${e}`);
         blacklistAutoCategoryIds = [];
         blacklistAutoCategoryNames = [];
+    }
+    // Debug 输出解析结果，帮助排查用户输入格式
+    try {
+        const isDebug = $.getdata(CONFIG.debugKey) === "true";
+        if (isDebug) {
+            console.log(`[Debug] 自动报名栏目黑名单解析: ids=${JSON.stringify(blacklistAutoCategoryIds)}, names=${JSON.stringify(blacklistAutoCategoryNames)}`);
+        }
+    } catch (e) {
+        console.log(`[Debug] 打印黑名单解析结果失败: ${e}`);
     }
     
     // 获取黑名单(ID)

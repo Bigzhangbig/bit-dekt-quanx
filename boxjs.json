@@ -4,6 +4,15 @@
   "author": "@Bigzhangbig",
   "icon": "https://raw.github.com/Bigzhangbig/bit-dekt-quanx/main/BIT.png",
   "repo": "https://github.com/Bigzhangbig/bit-dekt-quanx",
+  "onInstall": {
+    "title": "安装重写规则 - Install Rewrite Rules",
+    "message": "是否自动安装仓库内的 Quantumult X / Loon / Surge 重写配置？",
+    "install": {
+      "QuanX": "quantumult-x:///add-resource?remote-resource=%7B%22rewrite_remote%22%3A%5B%22https%3A%2F%2Fraw.githubusercontent.com%2FBigzhangbig%2Fbit-dekt-quanx%2Fmain%2Fbox%2Frewrite%2Fbit-dekt-quanx.rewrite.quanx.conf%22%2C%22https%3A%2F%2Fraw.githubusercontent.com%2FBigzhangbig%2Fbit-dekt-quanx%2Fmain%2Fcard_rewrite.snippet%22%5D%7D",
+      "Loon": "loon://import?plugin=https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/box/rewrite/bit-dekt-quanx.rewrite.loon.plugin,https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_rewrite.snippet",
+      "Surge": "surge:///install-module?url=https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/box/rewrite/bit-dekt-quanx.rewrite.surge.sgmodule,https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_rewrite.snippet"
+    }
+  },
   "apps": [
     {
       "id": "bit_dekt",
@@ -23,9 +32,6 @@
         "bit_sc_pickup_mode",
         "bit_sc_random_delay",
         "bit_sc_signup_list",
-        "bit_sc_github_token",
-        "bit_sc_gist_id",
-        "bit_sc_gist_filename",
         "bit_sc_auto_sign_all",
         "bit_sc_runtime_sign_ids",
         "bit_sc_auto_blacklist_categories"
@@ -290,17 +296,17 @@
         {
           "id": "bit_sc_auto_blacklist_categories",
           "name": "自动报名栏目黑名单",
-          "val": "",
-          "type": "selects",
+          "val": [],
+          "type": "checkboxes",
           "items": [
-            { "key": 1, "label": "理想信念" },
-            { "key": 2, "label": "科学素养" },
-            { "key": 3, "label": "社会贡献" },
-            { "key": 4, "label": "团队协作" },
-            { "key": 5, "label": "文化互鉴" },
-            { "key": 6, "label": "健康生活" }
+            { "key": "1", "label": "理想信念" },
+            { "key": "2", "label": "科学素养" },
+            { "key": "3", "label": "社会贡献" },
+            { "key": "4", "label": "团队协作" },
+            { "key": "5", "label": "文化互鉴" },
+            { "key": "6", "label": "健康生活" }
           ],
-          "desc": "选择不自动报名/捡漏的栏目（可多选），留空表示全部栏目均可自动报名/捡漏。被选中的栏目将不会自动报名。"
+          "desc": "选择不自动报名/捡漏的栏目 ID（可多选）。"
         },
         {
           "id": "bit_sc_runtime_sign_ids",
@@ -315,27 +321,6 @@
           "val": false,
           "type": "boolean",
           "desc": "开启后自动处理所有待签到/签退课程（按列表接口）；目标ID若已在列表阶段处理过则跳过重复。默认关闭。"
-        },
-        {
-          "id": "bit_sc_github_token",
-          "name": "GitHub Token",
-          "val": "",
-          "type": "text",
-          "desc": "用于自动同步Cookie到Gist (repo权限)"
-        },
-        {
-          "id": "bit_sc_gist_id",
-          "name": "Gist ID",
-          "val": "",
-          "type": "text",
-          "desc": "用于存储Cookie的Gist ID"
-        },
-        {
-          "id": "bit_sc_gist_filename",
-          "name": "Gist 文件名",
-          "val": "bit_cookies.json",
-          "type": "text",
-          "desc": "Gist中存储Cookie的文件名"
         },
         {
           "id": "bit_sc_user_id",
@@ -362,16 +347,36 @@
       ]
     },
     {
+      "id": "dekt",
+      "name": "本地 dekt 脚本",
+      "desc": "本地脚本：取消报名、签到、我的活动、监控",
+      "scripts": [
+        {
+          "name": "取消报名 - Unenroll",
+          "script": "https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/dekt_unenroll.js"
+        },
+        {
+          "name": "签到 - Sign In",
+          "script": "https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/dekt_signin.js"
+        },
+        {
+          "name": "我的活动 - My Activities",
+          "script": "https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/dekt_my_activities.js"
+        },
+        {
+          "name": "监控 - Monitor",
+          "script": "https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/dekt_monitor.js"
+        }
+      ],
+      "author": "@Bigzhangbig",
+      "repo": "https://github.com/Bigzhangbig/bit-dekt-quanx"
+    },
+    {
       "id": "bit_card",
       "name": "北理工校园卡助手",
       "keys": [
-        "bit_card_jsessionid",
-        "bit_card_openid",
         "bit_card_min_balance",
-        "bit_card_debug",
-        "bit_sc_github_token",
-        "bit_sc_gist_id",
-        "bit_card_gist_filename"
+        "bit_card_debug"
       ],
       "descs_html": [
         "请先在 Quantumult X 中添加重写规则获取 Cookie。",
@@ -392,34 +397,68 @@
           "val": false,
           "type": "boolean",
           "desc": "开启后打印详细日志"
-        },
+        }
+      ],
+      "author": "@Bigzhangbig",
+      "repo": "https://github.com/Bigzhangbig/bit-dekt-quanx",
+      "icons": [
+        "https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/BIT.png",
+        "https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/BIT.png"
+      ],
+      "scripts": [
+        {
+          "name": "查询余额 - Query Balance",
+          "script": "https://raw.githubusercontent.com/Bigzhangbig/bit-dekt-quanx/main/card_balance.js"
+        }
+      ]
+    },
+    {
+      "id": "bit_common",
+      "name": "通用设置 - Gist & Cookies",
+      "desc": "存放 Gist 与 Cookie 相关配置",
+      "keys": [
+        "bit_sc_github_token",
+        "bit_sc_gist_id",
+        "bit_sc_gist_filename",
+        "bit_card_gist_filename",
+        "bit_card_jsessionid",
+        "bit_card_openid"
+      ],
+      "settings": [
         {
           "id": "bit_sc_github_token",
           "name": "GitHub Token",
           "val": "",
           "type": "text",
-          "desc": "与第二课堂共用，用于自动同步Cookie到Gist"
+          "desc": "用于自动同步 Cookie 到 Gist (repo 权限)"
         },
         {
           "id": "bit_sc_gist_id",
           "name": "Gist ID",
           "val": "",
           "type": "text",
-          "desc": "与第二课堂共用，用于存储Cookie的Gist ID"
+          "desc": "用于存储 Cookie 的 Gist ID"
+        },
+        {
+          "id": "bit_sc_gist_filename",
+          "name": "第二课堂 Gist 文件名",
+          "val": "bit_cookies.json",
+          "type": "text",
+          "desc": "Gist 中存储第二课堂 Cookie 的文件名"
         },
         {
           "id": "bit_card_gist_filename",
-          "name": "Gist 文件名",
+          "name": "校园卡 Gist 文件名",
           "val": "bit_card_cookies.json",
           "type": "text",
-          "desc": "Gist中存储校园卡Cookie的文件名"
+          "desc": "Gist 中存储校园卡 Cookie 的文件名"
         },
         {
           "id": "bit_card_jsessionid",
           "name": "JSESSIONID (自动获取)",
           "val": "",
           "type": "text",
-          "desc": "无需手动填写，请通过重写获取",
+          "desc": "校园卡 JSESSIONID (自动获取)",
           "disabled": true
         },
         {
@@ -427,16 +466,12 @@
           "name": "OpenID (自动获取)",
           "val": "",
           "type": "text",
-          "desc": "无需手动填写，请通过重写获取",
+          "desc": "校园卡 OpenID (自动获取)",
           "disabled": true
         }
       ],
       "author": "@Bigzhangbig",
-      "repo": "https://github.com/Bigzhangbig/bit-dekt-quanx",
-      "icons": [
-        "https://raw.github.com/Bigzhangbig/bit-dekt-quanx/main/BIT.png",
-        "https://raw.github.com/Bigzhangbig/bit-dekt-quanx/main/BIT.png"
-      ]
+      "repo": "https://github.com/Bigzhangbig/bit-dekt-quanx"
     }
   ],
   "boxjs": {
