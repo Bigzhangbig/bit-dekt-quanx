@@ -90,23 +90,39 @@ async function checkActivities() {
     }
 }
 
-function httpGet(url, headers) {
+function httpGet(url, headers, timeout = 20000) {
+    // 默认带一次重试（避免偶发网络抖动）
+    return httpGetWithRetry(url, headers, timeout, 1);
+}
+
+function httpGetWithRetry(url, headers, timeout, retries) {
     return new Promise((resolve, reject) => {
-        $.get({ url, headers }, (err, resp, data) => {
-            if (err) {
-                reject(err);
-            } else {
-                if (resp.status === 401 || resp.statusCode === 401) {
-                    resolve({ code: 401, message: "Unauthenticated." });
-                    return;
+        const opts = { url, headers, timeout };
+
+        const attempt = (remaining) => {
+            $.get(opts, (err, resp, data) => {
+                if (err) {
+                    if (remaining > 0) {
+                        console.log(`[httpGet] 请求错误，重试中（剩余 ${remaining} 次）： ${err}`);
+                        setTimeout(() => attempt(remaining - 1), 1000);
+                        return;
+                    }
+                    reject(err);
+                } else {
+                    if (resp.status === 401 || resp.statusCode === 401) {
+                        resolve({ code: 401, message: "Unauthenticated." });
+                        return;
+                    }
+                    try {
+                        resolve(JSON.parse(data));
+                    } catch (e) {
+                        reject("JSON解析失败");
+                    }
                 }
-                try {
-                    resolve(JSON.parse(data));
-                } catch (e) {
-                    reject("JSON解析失败");
-                }
-            }
-        });
+            });
+        };
+
+        attempt(retries);
     });
 }
 
