@@ -235,41 +235,6 @@ async function trySign(courseId, info, headers, typeStr, courseTitle, options = 
         await executeSign(courseId, info, headers, '签退', courseTitle, options);
     }
 }
-// ...existing code...
-
-async function checkAndSignIn() {
-    const { token, headers, autoSignAll, targetIds } = getEnvConfig();
-
-    if (!token) {
-        notify($.name, "❌ 未找到 Token", "请先运行获取 Cookie 脚本或在 BoxJS 中填写", { force: true });
-        return;
-    }
-
-    // 获取课程列表并复用已有处理逻辑
-    let courses = [];
-    try {
-        courses = await getCourseList(headers);
-    } catch (e) {
-        // ignore
-    }
-
-    if (Array.isArray(courses) && courses.length > 0) {
-        await handleCourseList(courses, headers, autoSignAll);
-        try {
-            const coursesInWindow = await collectCoursesInWindow(courses, headers);
-            if (coursesInWindow.length === 1) {
-                const only = coursesInWindow[0];
-                const body = `${only.id}|${only.column}|${only.title}\n处在${only.when}窗口：${only.timeRange}\n时长：${only.duration}`;
-                notify($.name, `仅有一门课程在窗口`, body, { force: true });
-            }
-        } catch (e) {}
-    }
-
-    if (Array.isArray(targetIds) && targetIds.length > 0) {
-        await handleTargetIds(targetIds, headers);
-    }
-}
-
 // 获取课程时长：优先 REST 详情，其次我的课程列表兜底
 async function getCourseDuration(courseId, headers) {
     // 1) REST 课程详情
