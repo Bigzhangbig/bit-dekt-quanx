@@ -195,7 +195,7 @@ async function getMyCourseList(headers) {
                 const nowTs = Date.now();
                 items = items.filter(it => {
                     // 优先使用签退结束时间，其次签到结束时间
-                    const endTimeStr = it.sign_out_end_time || it.sign_in_end_time || it.sign_out_end || it.sign_in_end_time;
+                    const endTimeStr = it.sign_out_end_time || it.sign_in_end_time;
                     if (!endTimeStr) return true; // 没有结束时间则保留
                     const parsed = new Date(String(endTimeStr).replace(/-/g, '/'));
                     if (isNaN(parsed.getTime())) return true; // 无法解析则保留
