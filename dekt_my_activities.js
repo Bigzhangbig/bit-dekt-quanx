@@ -244,7 +244,7 @@ async function getCourseInfo(courseId, headers) {
     // 1) 优先获取 REST 课程详情（含签到/签退/时长）
     try {
         const rest = await httpGet(`${CONFIG.courseInfoUrlRest}${courseId}`, headers);
-            if (rest && rest.code === 200 && rest.data) {
+        if (rest && rest.code === 200 && rest.data) {
             Object.assign(result, rest.data);
             result._source.courseInfo = 'rest';
             if (result.duration != null) {
