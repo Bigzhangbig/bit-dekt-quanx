@@ -133,25 +133,27 @@ function httpGetWithRetry(url, headers, timeout, retries) {
 
         const attempt = (remaining) => {
             $.get(opts, (err, resp, data) => {
-                if (err) {
-                    if (remaining > 0) {
-                        log(`[httpGet] 请求错误，重试中（剩余 ${remaining} 次）： ${err}`);
-                        setTimeout(() => attempt(remaining - 1), 1000);
-                        return;
+                try {
+                    if (err) {
+                        if (remaining > 0) {
+                            log(`[httpGet] 请求错误，重试中（剩余 ${remaining} 次）： ${err}`);
+                            setTimeout(() => attempt(remaining - 1), 1000);
+                            return;
+                        }
+                        reject(err);
+                    } else {
+                        if (resp.status === 401 || resp.statusCode === 401) {
+                            resolve({ code: 401, message: "Unauthenticated." });
+                            return;
+                        }
+                        try {
+                            resolve(JSON.parse(data));
+                        } catch (e) {
+                            reject("JSON解析失败");
+                        }
                     }
+                } finally {
                     clearHb();
-                    reject(err);
-                } else {
-                    clearHb();
-                    if (resp.status === 401 || resp.statusCode === 401) {
-                        resolve({ code: 401, message: "Unauthenticated." });
-                        return;
-                    }
-                    try {
-                        resolve(JSON.parse(data));
-                    } catch (e) {
-                        reject("JSON解析失败");
-                    }
                 }
             });
         };
